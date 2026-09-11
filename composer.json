@@ -17,6 +17,7 @@
         "laravel/passport": "^13.8",
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.14",
+        "smartapi-php/angelbroking": "dev-main",
         "upstox/upstox-php-sdk": "^1.30"
     },
     "require-dev": {
@@ -116,5 +117,11 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": {
+        "smartapi-angel": {
+            "type": "vcs",
+            "url": "https://github.com/go4komal/smartapi-php.git"
+        }
+    }
 }

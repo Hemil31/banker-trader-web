@@ -41,11 +41,15 @@ class BrokerConnectionController extends Controller
     }
 
     /**
-     * OAuth callback (browser redirect from Upstox). Unauthenticated.
+     * OAuth callback (browser redirect from Upstox or Angel). Unauthenticated.
      */
     public function callback(string $slug, Request $request): RedirectResponse
     {
         $broker = Broker::where('slug', $slug)->firstOrFail();
+
+        if ($broker->slug === 'angel') {
+            return $this->angelCallback($broker, $request);
+        }
 
         $code = $request->query('code');
         $state = $request->query('state');
@@ -61,6 +65,65 @@ class BrokerConnectionController extends Controller
         }
 
         return redirect()->to($this->callbackTargetUrl($request, true, 'Broker connected successfully.', $account->id));
+    }
+
+    /**
+     * Angel publisher-login callback: tokens arrive in the query string.
+     */
+    protected function angelCallback(Broker $broker, Request $request): RedirectResponse
+    {
+        $state = $request->query('state');
+        $authToken = $request->query('auth_token');
+
+        if (! $authToken || ! $state) {
+            return redirect()->to($this->callbackTargetUrl($request, false, 'Missing authorization token.'));
+        }
+
+        try {
+            $account = $this->brokerOAuth->handleAngelCallback(
+                broker: $broker,
+                state: $state,
+                authToken: $authToken,
+                feedToken: $request->query('feed_token'),
+                clientId: $request->query('client_id') ?? $request->query('cid'),
+            );
+        } catch (RuntimeException $e) {
+            return redirect()->to($this->callbackTargetUrl($request, false, $e->getMessage()));
+        }
+
+        return redirect()->to($this->callbackTargetUrl($request, true, 'Broker connected successfully.', $account->id));
+    }
+
+    /**
+     * Connect a Kotak Neo account via server-side TOTP login.
+     */
+    public function kotakConnect(Request $request, string $tradingAccount): JsonResponse
+    {
+        $account = $request->user()->tradingAccounts()->findOrFail($tradingAccount);
+
+        $broker = Broker::where('slug', 'kotak')->active()->firstOrFail();
+
+        $validated = $request->validate([
+            'mobile_number' => ['required', 'string', 'max:20'],
+            'ucc' => ['required', 'string', 'max:40'],
+            'totp' => ['required', 'string', 'max:10'],
+            'mpin' => ['required', 'string', 'max:10'],
+        ]);
+
+        try {
+            $account = $this->brokerOAuth->connectKotak(
+                account: $account,
+                broker: $broker,
+                mobileNumber: $validated['mobile_number'],
+                ucc: $validated['ucc'],
+                totp: $validated['totp'],
+                mpin: $validated['mpin'],
+            );
+        } catch (RuntimeException $e) {
+            return $this->errorResponse(422, $e->getMessage());
+        }
+
+        return $this->successResponse(['trading_account_id' => $account->id], 'Kotak Neo connected successfully.');
     }
 
     /**

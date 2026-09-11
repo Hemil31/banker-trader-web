@@ -49,4 +49,46 @@ class TradingAccountFactory extends Factory
             'mode' => 'live',
         ]);
     }
+
+    /**
+     * Attach a connected live broker (Angel One) with credentials.
+     */
+    public function connectedAngel(): static
+    {
+        return $this->state(fn (): array => [
+            'broker_id' => fn () => Broker::updateOrCreate(
+                ['slug' => 'angel'],
+                ['name' => 'Angel One', 'paper' => false, 'active' => true]
+            )->id,
+            'credentials' => [
+                'access_token' => 'fake-angel-auth-token',
+                'feed_token' => 'fake-angel-feed-token',
+                'client_id' => 'A000000',
+                'connected_at' => now()->toISOString(),
+            ],
+            'mode' => 'live',
+        ]);
+    }
+
+    /**
+     * Attach a connected live broker (Kotak Neo) with credentials.
+     */
+    public function connectedKotak(): static
+    {
+        return $this->state(fn (): array => [
+            'broker_id' => fn () => Broker::updateOrCreate(
+                ['slug' => 'kotak'],
+                ['name' => 'Kotak Neo', 'paper' => false, 'active' => true]
+            )->id,
+            'credentials' => [
+                'access_token' => 'fake-kotak-token',
+                'sid' => 'fake-kotak-sid',
+                'mobile_number' => '+919000000000',
+                'ucc' => 'K000000',
+                'base_url' => 'https://e2.kotaksecurities.com',
+                'connected_at' => now()->toISOString(),
+            ],
+            'mode' => 'live',
+        ]);
+    }
 }

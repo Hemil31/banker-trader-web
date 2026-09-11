@@ -55,6 +55,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/broker/connect/{tradingAccount}/{slug}', [BrokerConnectionController::class, 'connect'])
         ->where('slug', '[a-z]+')
         ->name('api.broker.connect');
+    Route::post('/broker/connect/{tradingAccount}/kotak', [BrokerConnectionController::class, 'kotakConnect'])
+        ->name('api.broker.connect.kotak');
     Route::delete('/broker/disconnect/{tradingAccount}', [BrokerConnectionController::class, 'disconnect'])->name('api.broker.disconnect');
     Route::get('/broker/feed/{tradingAccount}/{type}', [BrokerConnectionController::class, 'feed'])
         ->where('type', 'market|portfolio')

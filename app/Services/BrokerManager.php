@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Contracts\Brokers\AngelBroker;
 use App\Contracts\Brokers\BrokerAdapter;
+use App\Contracts\Brokers\KotakBroker;
 use App\Contracts\Brokers\PaperBroker;
 use App\Contracts\Brokers\UpstoxBroker;
 use App\Contracts\Brokers\ZerodhaBroker;
@@ -33,6 +35,8 @@ class BrokerManager
             'paper' => new PaperBroker($account, $broker, $this->config),
             'zerodha' => new ZerodhaBroker($account, $broker, $this->config),
             'upstox' => new UpstoxBroker($account, $broker, $this->config),
+            'angel' => new AngelBroker($account, $broker, $this->config),
+            'kotak' => new KotakBroker($account, $broker, $this->config),
             default => throw new InvalidArgumentException("Unsupported broker slug: {$broker->slug}"),
         };
     }

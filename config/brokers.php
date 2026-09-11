@@ -26,9 +26,25 @@ return [
         'token_url' => env('UPSTOX_TOKEN_URL', 'https://api.upstox.com/v2/login/authorization/token'),
     ],
 
+    // Angel One uses a publisher-login redirect (not OAuth code exchange):
+    // the browser redirects back with `auth_token`, `feed_token` and the client
+    // id in the query string, which are stored directly as the account token.
+    'angel' => [
+        'api_key' => env('ANGEL_API_KEY'),
+        'api_base' => env('ANGEL_API_BASE', 'https://apiconnect.angelone.in'),
+        'login_url' => env('ANGEL_LOGIN_URL', 'https://smartapi.angelone.in/publisher-login'),
+        'redirect_url' => env('ANGEL_REDIRECT_URL', 'http://localhost:8000/api/broker/angel/callback'),
+    ],
+
+    // Kotak Neo authenticates server-side (TOTP + MPIN); the account session
+    // (token + sid) is stored per user, the consumer key is app-level.
+    'kotak' => [
+        'consumer_key' => env('KOTAK_CONSUMER_KEY'),
+        'api_base' => env('KOTAK_API_BASE', 'https://mis.kotaksecurities.com'),
+    ],
+
     // Future brokers:
     // 'zerodha' => [...],
-    // 'angel'   => [...],
-    // 'kotak'   => [...],
+    // 'paytm'   => [...],
 
 ];

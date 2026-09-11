@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Broker;
 use App\Models\TradingAccount;
+use Illuminate\Http\Client\Response as ClientResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -16,8 +17,8 @@ use RuntimeException;
  * to the correct trading account. The exchanged access token is stored
  * encrypted in trading_accounts.credentials.
  *
- * Works for any broker that implements a standard OAuth authorization_code
- * flow (Upstox today; Zerodha, Angel, etc. plug in with their own URLs).
+ * Works for standard OAuth authorization_code brokers (Upstox today) and for
+ * Angel's publisher-login redirect, which returns the session token directly.
  */
 class BrokerOAuthService
 {
@@ -31,6 +32,18 @@ class BrokerOAuthService
         $config = $this->brokerConfig($broker);
 
         $state = $this->buildState($account);
+
+        if ($broker->slug === 'angel') {
+            // Angel uses a publisher-login redirect: the browser returns
+            // auth_token + feed_token directly in the callback query string.
+            $query = http_build_query([
+                'api_key' => $config['api_key'],
+                'redirect_url' => $config['redirect_url'],
+                'state' => $state,
+            ]);
+
+            return $config['login_url'].'?'.$query;
+        }
 
         $query = http_build_query([
             'response_type' => 'code',
@@ -73,13 +86,122 @@ class BrokerOAuthService
             'connected_at' => now()->toISOString(),
         ]);
 
-        $account->update([
-            'broker_id' => $broker->id,
-            'credentials' => $credentials,
-            'mode' => 'live',
+        return $this->persistConnection($account, $broker, $credentials);
+    }
+
+    /**
+     * Persist tokens returned by Angel's publisher-login redirect. Unlike the
+     * OAuth code flow there is no token exchange: `auth_token` is the Bearer
+     * session (valid until midnight) and `feed_token` powers the live market
+     * feed.
+     */
+    public function handleAngelCallback(Broker $broker, string $state, string $authToken, ?string $feedToken = null, ?string $clientId = null): TradingAccount
+    {
+        $account = $this->verifyState($state);
+
+        $credentials = array_merge((array) ($account->credentials ?? []), [
+            'access_token' => $authToken,
+            'feed_token' => $feedToken,
+            'client_id' => $clientId,
+            'connected_at' => now()->toISOString(),
         ]);
 
-        return $account->loadMissing('broker');
+        return $this->persistConnection($account, $broker, $credentials);
+    }
+
+    /**
+     * Connect a Kotak Neo account via server-side TOTP login (no redirect).
+     *
+     * The flow mirrors the Kotak Neo SDK: totp_login returns a short-lived
+     * view token + sid, then totp_validate swaps those for the edit token +
+     * sid (plus the account's data-center base URL) used by the trade APIs.
+     */
+    public function connectKotak(TradingAccount $account, Broker $broker, string $mobileNumber, string $ucc, string $totp, string $mpin): TradingAccount
+    {
+        $config = $this->brokerConfig($broker);
+
+        $loginHeaders = [
+            'Authorization' => $config['consumer_key'],
+            'neo-fin-key' => 'neotradeapi',
+        ];
+
+        $login = Http::baseUrl($config['api_base'])
+            ->withHeaders($loginHeaders)
+            ->asJson()
+            ->acceptJson()
+            ->timeout(15)
+            ->post('/login/1.0/tradeApiLogin', [
+                'mobileNumber' => $mobileNumber,
+                'ucc' => $ucc,
+                'totp' => $totp,
+            ]);
+
+        $loginData = $this->kotakDataOrFail($login, 'totp_login');
+
+        $viewToken = (string) ($loginData['token'] ?? '');
+        $sid = (string) ($loginData['sid'] ?? '');
+
+        if ($viewToken === '' || $sid === '') {
+            throw new RuntimeException('Kotak login did not return a session.');
+        }
+
+        $validate = Http::baseUrl($config['api_base'])
+            ->withHeaders($loginHeaders + [
+                'Sid' => $sid,
+                'Auth' => $viewToken,
+            ])
+            ->asJson()
+            ->acceptJson()
+            ->timeout(15)
+            ->post('/login/1.0/tradeApiValidate', ['mpin' => $mpin]);
+
+        $validateData = $this->kotakDataOrFail($validate, 'totp_validate');
+
+        $editToken = (string) ($validateData['token'] ?? '');
+        $editSid = (string) ($validateData['sid'] ?? '');
+
+        if ($editToken === '' || $editSid === '') {
+            throw new RuntimeException('Kotak MPIN validation did not return a session.');
+        }
+
+        $credentials = array_merge((array) ($account->credentials ?? []), [
+            'access_token' => $editToken,
+            'sid' => $editSid,
+            'rid' => $validateData['rid'] ?? null,
+            'mobile_number' => $mobileNumber,
+            'ucc' => $ucc,
+            'base_url' => $validateData['baseUrl'] ?? null,
+            'data_center' => $validateData['dataCenter'] ?? null,
+            'connected_at' => now()->toISOString(),
+        ]);
+
+        return $this->persistConnection($account, $broker, $credentials);
+    }
+
+    /**
+     * Decode the Kotak login/validate envelope (2xx with a `data` payload).
+     *
+     * @return array<string, mixed>
+     */
+    protected function kotakDataOrFail(ClientResponse $response, string $operation): array
+    {
+        $body = $response->json();
+
+        if ($response->failed() || ! is_array($body)) {
+            $message = is_array($body) ? (string) ($body['errMsg'] ?? $body['stat'] ?? 'unknown error') : $response->body();
+
+            throw new RuntimeException("Kotak {$operation} failed: {$message}");
+        }
+
+        $data = $body['data'] ?? null;
+
+        if (is_array($data)) {
+            return $data;
+        }
+
+        $message = (string) ($body['errMsg'] ?? $body['stat'] ?? 'unexpected response');
+
+        throw new RuntimeException("Kotak {$operation} failed: {$message}");
     }
 
     /**
@@ -92,6 +214,22 @@ class BrokerOAuthService
             'credentials' => null,
             'mode' => 'paper',
         ]);
+    }
+
+    /**
+     * Bind the broker and persist the user's tokens.
+     *
+     * @param  array<string, mixed>  $credentials
+     */
+    protected function persistConnection(TradingAccount $account, Broker $broker, array $credentials): TradingAccount
+    {
+        $account->update([
+            'broker_id' => $broker->id,
+            'credentials' => $credentials,
+            'mode' => 'live',
+        ]);
+
+        return $account->loadMissing('broker');
     }
 
     /**
@@ -190,10 +328,24 @@ class BrokerOAuthService
     {
         $config = config("brokers.{$broker->slug}");
 
-        if (! is_array($config) || empty($config['app_id']) || empty($config['app_secret'])) {
+        $required = match ($broker->slug) {
+            'angel' => ['api_key', 'redirect_url', 'login_url'],
+            'kotak' => ['consumer_key', 'api_base'],
+            default => ['app_id', 'app_secret', 'redirect_url', 'login_url'],
+        };
+
+        if (! is_array($config)) {
             throw new RuntimeException(
                 "Broker '{$broker->slug}' is not configured. Set its env credentials first."
             );
+        }
+
+        foreach ($required as $key) {
+            if (empty($config[$key])) {
+                throw new RuntimeException(
+                    "Broker '{$broker->slug}' is not configured. Set its env credentials first."
+                );
+            }
         }
 
         return $config;

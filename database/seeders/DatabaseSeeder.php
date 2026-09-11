@@ -53,6 +53,26 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        Broker::updateOrCreate(
+            ['slug' => 'angel'],
+            [
+                'name' => 'Angel One',
+                'paper' => false,
+                'active' => true,
+                'credentials' => null,
+            ]
+        );
+
+        Broker::updateOrCreate(
+            ['slug' => 'kotak'],
+            [
+                'name' => 'Kotak Neo',
+                'paper' => false,
+                'active' => true,
+                'credentials' => null,
+            ]
+        );
+
         $user = User::firstOrCreate(
             ['email' => 'dev@bankertrader.local'],
             [

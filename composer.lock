@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3bcff70d5843982b3103192fb1b41fcd",
+    "content-hash": "46b01dc49a1cc14a9c376583dac86106",
     "packages": [
         {
             "name": "amphp/amp",
@@ -6372,6 +6372,41 @@
             "time": "2026-05-16T17:55:38+00:00"
         },
         {
+            "name": "smartapi-php/angelbroking",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/go4komal/smartapi-php.git",
+                "reference": "5a1f2a971dbd3ebfceea26f5237ab077fee65913"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/go4komal/smartapi-php/zipball/5a1f2a971dbd3ebfceea26f5237ab077fee65913",
+                "reference": "5a1f2a971dbd3ebfceea26f5237ab077fee65913",
+                "shasum": ""
+            },
+            "default-branch": true,
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "AngelBroking\\": "/src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Angel Broking",
+                    "email": "anam@magnusideas.com"
+                }
+            ],
+            "support": {
+                "source": "https://github.com/go4komal/smartapi-php/tree/main"
+            },
+            "time": "2021-05-24T10:15:02+00:00"
+        },
+        {
             "name": "spomky-labs/cbor-php",
             "version": "3.3.4",
             "source": {
@@ -12682,7 +12717,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "smartapi-php/angelbroking": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

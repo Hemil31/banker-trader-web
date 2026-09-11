@@ -76,6 +76,8 @@ class BacktestEngine
         // Snapshot config + market data so the hot loops never hit the DB.
         $snapshot = TradingConfig::allTyped();
         $snapshot = array_merge($snapshot, $options['overrides'] ?? []);
+        // Walk-forward replays are purely technical — no live news lookups per day.
+        $snapshot['news.enabled'] = false;
         $this->config->useSnapshot($snapshot);
         $this->scanner->useSnapshot($snapshot);
         $this->sizer->useSnapshot($snapshot);

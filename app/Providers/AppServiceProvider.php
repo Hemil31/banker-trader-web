@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Contracts\MarketData\MarketDataProvider;
 use App\Contracts\MarketData\YahooFinanceProvider;
+use App\Contracts\News\FreeNewsApiProvider;
+use App\Contracts\News\NewsProvider;
 use App\Contracts\Repositories\AuthRepositoryInterface;
 use App\Repositories\AuthRepository;
 use Carbon\CarbonImmutable;
@@ -22,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(AuthRepositoryInterface::class, AuthRepository::class);
         $this->app->bind(MarketDataProvider::class, YahooFinanceProvider::class);
+        $this->app->bind(NewsProvider::class, FreeNewsApiProvider::class);
 
         Passport::enablePasswordGrant();
     }

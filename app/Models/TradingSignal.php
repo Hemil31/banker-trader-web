@@ -21,7 +21,7 @@ class TradingSignal extends Model
     protected $fillable = [
         'stock_id', 'trading_account_id', 'signal_date', 'signal_time', 'price',
         'score', 'decline_score', 'reversal_score', 'volume_score',
-        'technical_score', 'liquidity_score', 'volatility_score',
+        'technical_score', 'liquidity_score', 'volatility_score', 'news_score',
         'proposed_sl', 'proposed_target1', 'proposed_target2', 'proposed_target3',
         'proposed_quantity', 'risk_per_share', 'reward_per_share', 'decline_percent',
         'risk_reward_ratio', 'entry_reasons', 'indicators_at_entry',
@@ -39,6 +39,7 @@ class TradingSignal extends Model
         'technical_score' => 'float',
         'liquidity_score' => 'float',
         'volatility_score' => 'float',
+        'news_score' => 'float',
         'proposed_sl' => 'decimal:4',
         'proposed_target1' => 'decimal:4',
         'proposed_target2' => 'decimal:4',

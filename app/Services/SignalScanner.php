@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\MarketData;
 use App\Models\Stock;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Detects pullback + reversal setups and produces a composite trade score.
@@ -21,11 +22,13 @@ class SignalScanner
         'technical' => 'product.weights.technical',
         'liquidity' => 'product.weights.liquidity',
         'volatility' => 'product.weights.volatility',
+        'news' => 'product.weights.news',
     ];
 
     public function __construct(
         protected IndicatorCalculator $indicators,
         protected TradingConfigService $config,
+        protected NewsService $news,
     ) {}
 
     /**
@@ -54,6 +57,8 @@ class SignalScanner
      *     technical_score: float,
      *     liquidity_score: float,
      *     volatility_score: float,
+     *     news_score: ?float,
+     *     news: ?array{score: float, positive: int, negative: int, neutral: int, sample: ?string},
      *     reasons: array<string, mixed>,
      *     tradable: bool,
      *     rejection?: string
@@ -81,31 +86,51 @@ class SignalScanner
         $liquidity = $this->liquidityScore($indicators);
         $volatility = $this->volatilityScore($indicators);
 
-        $score = array_sum([
-            $decline * $weights['decline'],
-            $reversal * $weights['reversal'],
-            $volume * $weights['volume'],
-            $technical * $weights['technical'],
-            $liquidity * $weights['liquidity'],
-            $volatility * $weights['volatility'],
-        ]);
+        $newsDoc = $this->newsScore($stock);
+        $newsScore = $newsDoc['score'] ?? null;
+
+        $components = [
+            'decline' => $decline,
+            'reversal' => $reversal,
+            'volume' => $volume,
+            'technical' => $technical,
+            'liquidity' => $liquidity,
+            'volatility' => $volatility,
+        ];
+
+        if ($newsScore !== null) {
+            $components['news'] = (float) $newsScore;
+        }
+
+        $score = 0.0;
+        $totalWeight = 0.0;
+        foreach ($components as $key => $componentScore) {
+            $score += $componentScore * $weights[$key];
+            $totalWeight += $weights[$key];
+        }
+
+        // Normalize by the weights actually present so the weighted-average scale is
+        // preserved whether or not the news component participates.
+        if ($totalWeight > 0) {
+            $score /= $totalWeight;
+        }
 
         $minScore = $this->config->float('product.min_score', 60);
-        $reasons = $this->buildReasons($indicators);
+        $reasons = $this->buildReasons($indicators, $newsDoc);
 
         // The reversal confirmation is a hard gate on top of the continuous score.
         $minConfirm = $this->config->int('product.min_reversal_confirmations', 2);
         $confirmations = $reasons['reversal_confirmations'] ?? 0;
 
         if ($score < $minScore) {
-            return $this->scanResult($stock, $indicators, $score, $weights, $decline, $reversal, $volume, $technical, $liquidity, $volatility, $reasons, false, 'score_below_minimum');
+            return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, false, 'score_below_minimum');
         }
 
         if ($confirmations < $minConfirm) {
-            return $this->scanResult($stock, $indicators, $score, $weights, $decline, $reversal, $volume, $technical, $liquidity, $volatility, $reasons, false, 'insufficient_reversal_confirmations');
+            return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, false, 'insufficient_reversal_confirmations');
         }
 
-        return $this->scanResult($stock, $indicators, $score, $weights, $decline, $reversal, $volume, $technical, $liquidity, $volatility, $reasons, true);
+        return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, true);
     }
 
     /**
@@ -273,6 +298,33 @@ class SignalScanner
     }
 
     /**
+     * News sentiment for a stock (0..100) or null when the component should not
+     * participate: feature disabled, API failure, or no recent coverage at all.
+     *
+     * @return array{score: float, positive: int, negative: int, neutral: int, sample: ?string}|null
+     */
+    protected function newsScore(Stock $stock): ?array
+    {
+        if (! $this->config->bool('news.enabled', true)) {
+            return null;
+        }
+
+        try {
+            $articles = $this->news->fetch($stock->symbol, $stock->name);
+        } catch (\Throwable $e) {
+            Log::warning("News component skipped for {$stock->symbol}: {$e->getMessage()}");
+
+            return null;
+        }
+
+        if ($articles === []) {
+            return null;
+        }
+
+        return $this->news->sentiment($articles);
+    }
+
+    /**
      * @return array<string, float>
      */
     protected function weights(): array
@@ -291,20 +343,22 @@ class SignalScanner
     protected function defaultWeights(): array
     {
         return [
-            'decline' => 0.20,
-            'reversal' => 0.25,
-            'volume' => 0.20,
+            'decline' => 0.15,
+            'reversal' => 0.20,
+            'volume' => 0.15,
             'technical' => 0.15,
             'liquidity' => 0.10,
             'volatility' => 0.10,
+            'news' => 0.15,
         ];
     }
 
     /**
      * @param  array<string, float|int|null>  $ind
+     * @param  array{score: float, positive: int, negative: int, neutral: int, sample: ?string}|null  $news
      * @return array<string, mixed>
      */
-    protected function buildReasons(array $ind): array
+    protected function buildReasons(array $ind, ?array $news = null): array
     {
         $reasons = [];
 
@@ -339,12 +393,24 @@ class SignalScanner
             $reasons['volume'] = 'Volume expanding into the move';
         }
 
+        if ($news !== null && ($news['sample'] ?? null) !== null) {
+            $reasons['news'] = sprintf(
+                'News %+.0f (pos %d / neg %d): %s',
+                (float) $news['score'] - 50,
+                $news['positive'],
+                $news['negative'],
+                $news['sample'],
+            );
+        }
+
         return $reasons;
     }
 
     /**
      * @param  array<string, float|int|null>  $ind
      * @param  array<string, float>  $weights
+     * @param  array<string, float>  $components
+     * @param  array{score: float, positive: int, negative: int, neutral: int, sample: ?string}|null  $news
      * @param  array<string, mixed>  $reasons
      * @return array{
      *     stock: Stock,
@@ -358,6 +424,8 @@ class SignalScanner
      *     technical_score: float,
      *     liquidity_score: float,
      *     volatility_score: float,
+     *     news_score: ?float,
+     *     news: ?array{score: float, positive: int, negative: int, neutral: int, sample: ?string},
      *     reasons: array<string, mixed>,
      *     tradable: bool,
      *     rejection?: string
@@ -368,12 +436,9 @@ class SignalScanner
         array $ind,
         float $score,
         array $weights,
-        float $decline,
-        float $reversal,
-        float $volume,
-        float $technical,
-        float $liquidity,
-        float $volatility,
+        array $components,
+        ?float $newsScore,
+        ?array $news,
         array $reasons,
         bool $tradable,
         ?string $rejection = null,
@@ -383,20 +448,15 @@ class SignalScanner
             'indicators' => $ind,
             'score' => $score,
             'weights' => $weights,
-            'components' => [
-                'decline' => $decline,
-                'reversal' => $reversal,
-                'volume' => $volume,
-                'technical' => $technical,
-                'liquidity' => $liquidity,
-                'volatility' => $volatility,
-            ],
-            'decline_score' => $decline,
-            'reversal_score' => $reversal,
-            'volume_score' => $volume,
-            'technical_score' => $technical,
-            'liquidity_score' => $liquidity,
-            'volatility_score' => $volatility,
+            'components' => $components,
+            'decline_score' => $components['decline'],
+            'reversal_score' => $components['reversal'],
+            'volume_score' => $components['volume'],
+            'technical_score' => $components['technical'],
+            'liquidity_score' => $components['liquidity'],
+            'volatility_score' => $components['volatility'],
+            'news_score' => $newsScore,
+            'news' => $news,
             'reasons' => $reasons,
             'tradable' => $tradable,
             'rejection' => $rejection,

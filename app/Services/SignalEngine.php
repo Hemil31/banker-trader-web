@@ -135,6 +135,7 @@ class SignalEngine
                 'technical_score' => $setup['technical_score'],
                 'liquidity_score' => $setup['liquidity_score'],
                 'volatility_score' => $setup['volatility_score'],
+                'news_score' => $setup['news_score'] ?? null,
                 'proposed_sl' => $sl,
                 'proposed_target1' => $t1,
                 'proposed_target2' => $t2,

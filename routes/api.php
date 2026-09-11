@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Admin\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Broker\BrokerConnectionController;
 use App\Http\Controllers\Api\Broker\BrokerController;
+use App\Http\Controllers\Api\News\NewsController;
 use App\Http\Controllers\Api\Trading\PaperRunController;
 use App\Http\Controllers\Api\Trading\PaperTradesController;
 use App\Http\Controllers\Api\Trading\PortfolioController;
@@ -42,6 +43,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/positions', [PositionsController::class, 'index'])->name('api.positions');
     Route::get('/signals', [SignalsController::class, 'index'])->name('api.signals');
     Route::get('/paper-trades', [PaperTradesController::class, 'index'])->name('api.paper-trades');
+    Route::get('/news', [NewsController::class, 'index'])->name('api.news');
 
     Route::get('/trading/config', [TradingConfigController::class, 'index'])->name('api.trading.config.index');
     Route::patch('/trading/config', [TradingConfigController::class, 'update'])->name('api.trading.config.update');

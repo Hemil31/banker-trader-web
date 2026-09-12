@@ -322,11 +322,39 @@ class BrokerOAuthService
     /**
      * Resolve app-level credentials for a broker.
      *
-     * @return array<string, string>
+     * Credentials are read from the `brokers.credentials` JSON column first
+     * (database-side), falling back to env config (`config/brokers.php`) so
+     * existing environments keep working. Every user still connects their own
+     * account — this data is app-level, not user-level.
+     *
+     * @return array<string, mixed>
      */
     protected function brokerConfig(Broker $broker): array
     {
-        $config = config("brokers.{$broker->slug}");
+        $db = is_array($broker->credentials) ? $broker->credentials : [];
+        $env = is_array(config("brokers.{$broker->slug}")) ? config("brokers.{$broker->slug}") : [];
+
+        $config = match ($broker->slug) {
+            'angel' => [
+                'api_key' => $db['api_key'] ?? $env['api_key'] ?? null,
+                'api_base' => $db['api_base'] ?? $env['api_base'] ?? 'https://apiconnect.angelone.in',
+                'login_url' => $db['login_url'] ?? $env['login_url'] ?? 'https://smartapi.angelone.in/publisher-login',
+                'redirect_url' => $db['redirect_url'] ?? $env['redirect_url'] ?? $this->callbackUrl($broker),
+            ],
+            'kotak' => [
+                'consumer_key' => $db['consumer_key'] ?? $env['consumer_key'] ?? null,
+                'api_base' => $db['api_base'] ?? $env['api_base'] ?? 'https://mis.kotaksecurities.com',
+            ],
+            default => [
+                'app_id' => $db['app_id'] ?? $env['app_id'] ?? null,
+                'app_secret' => $db['app_secret'] ?? $env['app_secret'] ?? null,
+                'api_base' => $db['api_base'] ?? $env['api_base'] ?? 'https://api.upstox.com/v2',
+                'login_url' => $db['login_url'] ?? $env['login_url'] ?? 'https://api.upstox.com/v2/login/authorization/dialog',
+                'token_url' => $db['token_url'] ?? $env['token_url'] ?? 'https://api.upstox.com/v2/login/authorization/token',
+                'redirect_url' => $db['redirect_url'] ?? $env['redirect_url'] ?? $this->callbackUrl($broker),
+                'sandbox' => (bool) ($db['sandbox'] ?? $env['sandbox'] ?? false),
+            ],
+        };
 
         $required = match ($broker->slug) {
             'angel' => ['api_key', 'redirect_url', 'login_url'],
@@ -334,20 +362,24 @@ class BrokerOAuthService
             default => ['app_id', 'app_secret', 'redirect_url', 'login_url'],
         };
 
-        if (! is_array($config)) {
-            throw new RuntimeException(
-                "Broker '{$broker->slug}' is not configured. Set its env credentials first."
-            );
-        }
-
         foreach ($required as $key) {
             if (empty($config[$key])) {
                 throw new RuntimeException(
-                    "Broker '{$broker->slug}' is not configured. Set its env credentials first."
+                    "Broker '{$broker->slug}' is not configured. Set its database credentials first."
                 );
             }
         }
 
         return $config;
+    }
+
+    /**
+     * Derive the OAuth callback URL for a broker from the app URL when it is
+     * not explicitly configured, so a locally-hosted backend is reachable from
+     * a phone on the same network.
+     */
+    protected function callbackUrl(Broker $broker): string
+    {
+        return rtrim((string) config('app.url'), '/')."/api/broker/{$broker->slug}/callback";
     }
 }

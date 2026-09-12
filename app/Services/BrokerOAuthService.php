@@ -179,6 +179,42 @@ class BrokerOAuthService
     }
 
     /**
+     * Connect a MegaBull paper-trading account with the user's own api-key.
+     *
+     * Unlike the OAuth/TOTP brokers there is no login exchange: the key is
+     * verified with a single GET /api/user/my call, then stored as-is
+     * (encrypted at rest via TradingAccount::credentials). MegaBull still
+     * trades virtual money, so persistConnection() keeps the account in
+     * 'paper' mode rather than 'live'.
+     */
+    public function connectMegaBull(TradingAccount $account, Broker $broker, string $apiKey): TradingAccount
+    {
+        $config = $this->brokerConfig($broker);
+
+        $response = Http::baseUrl($config['api_base'])
+            ->withHeaders(['api-key' => $apiKey])
+            ->acceptJson()
+            ->timeout(15)
+            ->get('/api/user/my');
+
+        $profile = $response->json();
+
+        if ($response->failed() || ! is_array($profile)) {
+            $message = is_array($profile) ? (string) ($profile['message'][0] ?? $profile['error'] ?? 'unknown error') : $response->body();
+
+            throw new RuntimeException("MegaBull key verification failed: {$message}");
+        }
+
+        $credentials = array_merge((array) ($account->credentials ?? []), [
+            'api_key' => $apiKey,
+            'account_name' => trim(($profile['firstName'] ?? '').' '.($profile['lastName'] ?? '')),
+            'connected_at' => now()->toISOString(),
+        ]);
+
+        return $this->persistConnection($account, $broker, $credentials);
+    }
+
+    /**
      * Decode the Kotak login/validate envelope (2xx with a `data` payload).
      *
      * @return array<string, mixed>
@@ -217,7 +253,10 @@ class BrokerOAuthService
     }
 
     /**
-     * Bind the broker and persist the user's tokens.
+     * Bind the broker and persist the user's tokens. Paper-flagged providers
+     * (the built-in simulator, MegaBull, ...) keep the account in 'paper'
+     * mode since no real money is at risk; everything else switches to
+     * 'live'.
      *
      * @param  array<string, mixed>  $credentials
      */
@@ -226,10 +265,26 @@ class BrokerOAuthService
         $account->update([
             'broker_id' => $broker->id,
             'credentials' => $credentials,
-            'mode' => 'live',
+            'mode' => $broker->paper ? 'paper' : 'live',
         ]);
 
-        return $account->loadMissing('broker');
+        $account = $account->loadMissing('broker');
+
+        // Show the real broker balance immediately rather than waiting for
+        // the next automation run to reconcile it. Best-effort: a failure
+        // here shouldn't fail the connection itself.
+        try {
+            $balances = $this->brokers->adapterFor($broker, $account)->getBalances();
+
+            $account->update([
+                'available_cash' => round((float) $balances['available_cash'], 2),
+                'invested_amount' => round((float) $balances['invested'], 2),
+            ]);
+        } catch (\Throwable) {
+            // Ignored — the next paper/automation run will reconcile it.
+        }
+
+        return $account;
     }
 
     /**
@@ -243,7 +298,9 @@ class BrokerOAuthService
 
         $broker = $account->broker;
 
-        if (! $broker || $broker->paper) {
+        // The built-in zero-config simulator has nothing to "connect" — but a
+        // paper-flagged external provider (MegaBull) genuinely can be.
+        if (! $broker || $broker->slug === 'paper') {
             return ['connected' => false, 'broker' => null, 'mode' => $account->mode];
         }
 
@@ -345,6 +402,9 @@ class BrokerOAuthService
                 'consumer_key' => $db['consumer_key'] ?? $env['consumer_key'] ?? null,
                 'api_base' => $db['api_base'] ?? $env['api_base'] ?? 'https://mis.kotaksecurities.com',
             ],
+            'megabull' => [
+                'api_base' => $db['api_base'] ?? $env['api_base'] ?? 'https://api.megabull.in',
+            ],
             default => [
                 'app_id' => $db['app_id'] ?? $env['app_id'] ?? null,
                 'app_secret' => $db['app_secret'] ?? $env['app_secret'] ?? null,
@@ -359,6 +419,7 @@ class BrokerOAuthService
         $required = match ($broker->slug) {
             'angel' => ['api_key', 'redirect_url', 'login_url'],
             'kotak' => ['consumer_key', 'api_base'],
+            'megabull' => ['api_base'],
             default => ['app_id', 'app_secret', 'redirect_url', 'login_url'],
         };
 

@@ -69,15 +69,18 @@ class TradingAccount extends Model
     }
 
     /**
-     * Whether this account has a live broker connected.
+     * Whether this account has a broker actually connected — the built-in
+     * zero-config simulator (slug 'paper') never counts, but a credentialed
+     * external provider does, whether or not it trades real money (e.g.
+     * MegaBull is paper-flagged but still needs its own api-key connected).
      */
     public function isLiveBrokerConnected(): bool
     {
         return $this->broker_id !== null
             && $this->broker !== null
-            && ! $this->broker->paper
+            && $this->broker->slug !== 'paper'
             && is_array($this->credentials)
-            && ! empty($this->credentials['access_token']);
+            && (! empty($this->credentials['access_token']) || ! empty($this->credentials['api_key']));
     }
 
     /**

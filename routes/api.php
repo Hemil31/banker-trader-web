@@ -59,6 +59,8 @@ Route::middleware('auth:api')->group(function () {
         ->name('api.broker.connect');
     Route::post('/broker/connect/{tradingAccount}/kotak', [BrokerConnectionController::class, 'kotakConnect'])
         ->name('api.broker.connect.kotak');
+    Route::post('/broker/connect/{tradingAccount}/megabull', [BrokerConnectionController::class, 'megabullConnect'])
+        ->name('api.broker.connect.megabull');
     Route::delete('/broker/disconnect/{tradingAccount}', [BrokerConnectionController::class, 'disconnect'])->name('api.broker.disconnect');
     Route::get('/broker/feed/{tradingAccount}/{type}', [BrokerConnectionController::class, 'feed'])
         ->where('type', 'market|portfolio')

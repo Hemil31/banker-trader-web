@@ -18,4 +18,6 @@ Route::redirect('/', '/login')->name('home');
 
 Route::middleware(['auth', 'is_admin'])->group(function () {
     Route::get('admin', [AdminController::class, 'index'])->name('admin.dashboard');
+    Route::get('admin/settings', [AdminController::class, 'settings'])->name('admin.settings');
+    Route::post('admin/settings', [AdminController::class, 'updateSetting'])->name('admin.settings.update');
 });

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\Brokers\AngelBroker;
 use App\Contracts\Brokers\BrokerAdapter;
 use App\Contracts\Brokers\KotakBroker;
+use App\Contracts\Brokers\MegaBullBroker;
 use App\Contracts\Brokers\PaperBroker;
 use App\Contracts\Brokers\UpstoxBroker;
 use App\Contracts\Brokers\ZerodhaBroker;
@@ -37,6 +38,7 @@ class BrokerManager
             'upstox' => new UpstoxBroker($account, $broker, $this->config),
             'angel' => new AngelBroker($account, $broker, $this->config),
             'kotak' => new KotakBroker($account, $broker, $this->config),
+            'megabull' => new MegaBullBroker($account, $broker, $this->config),
             default => throw new InvalidArgumentException("Unsupported broker slug: {$broker->slug}"),
         };
     }
@@ -95,6 +97,22 @@ class BrokerManager
     {
         return Broker::where('active', true)
             ->where('paper', false)
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Active paper-trading providers that need real credentials (MegaBull and
+     * friends) — everything paper-flagged except the built-in zero-config
+     * simulator (slug 'paper').
+     *
+     * @return Collection<int, Broker>
+     */
+    public function paperProviders()
+    {
+        return Broker::where('active', true)
+            ->where('paper', true)
+            ->where('slug', '!=', 'paper')
             ->orderBy('name')
             ->get();
     }

@@ -16,6 +16,6 @@ class PaperTradesController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return $this->successResponse($this->dashboard->paperTrades(100), 'Paper trades');
+        return $this->successResponse($this->dashboard->paperTrades(100, $request->user()), 'Paper trades');
     }
 }

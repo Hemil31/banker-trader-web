@@ -73,6 +73,16 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        Broker::updateOrCreate(
+            ['slug' => 'megabull'],
+            [
+                'name' => 'MegaBull',
+                'paper' => true,
+                'active' => true,
+                'credentials' => null,
+            ]
+        );
+
         $user = User::firstOrCreate(
             ['email' => 'dev@bankertrader.local'],
             [

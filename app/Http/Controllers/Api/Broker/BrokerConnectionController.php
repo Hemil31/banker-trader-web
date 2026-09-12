@@ -127,6 +127,32 @@ class BrokerConnectionController extends Controller
     }
 
     /**
+     * Connect a MegaBull paper-trading account with the user's own api-key.
+     */
+    public function megabullConnect(Request $request, string $tradingAccount): JsonResponse
+    {
+        $account = $request->user()->tradingAccounts()->findOrFail($tradingAccount);
+
+        $broker = Broker::where('slug', 'megabull')->active()->firstOrFail();
+
+        $validated = $request->validate([
+            'api_key' => ['required', 'string', 'max:200'],
+        ]);
+
+        try {
+            $account = $this->brokerOAuth->connectMegaBull(
+                account: $account,
+                broker: $broker,
+                apiKey: $validated['api_key'],
+            );
+        } catch (RuntimeException $e) {
+            return $this->errorResponse(422, $e->getMessage());
+        }
+
+        return $this->successResponse(['trading_account_id' => $account->id], 'MegaBull connected successfully.');
+    }
+
+    /**
      * Disconnect a broker from the user's account.
      */
     public function disconnect(Request $request, string $tradingAccount): JsonResponse

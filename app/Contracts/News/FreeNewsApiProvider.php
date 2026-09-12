@@ -2,6 +2,7 @@
 
 namespace App\Contracts\News;
 
+use App\Services\TradingConfigService;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -14,17 +15,28 @@ use Illuminate\Support\Facades\Http;
  * The free plan reports daily quota via X-RateLimit-* response headers; the
  * latest values are exposed through quota() so NewsService can halt the
  * component once the server says the day is exhausted.
+ *
+ * The key itself is DB-backed (trading_configs: news.api_key, not editable
+ * via the per-user config API) with an env fallback (NEWS_API_KEY), mirroring
+ * how broker app-level credentials resolve — see BrokerOAuthService.
  */
 class FreeNewsApiProvider implements NewsProvider
 {
     /** @var array{limit_day: ?int, remaining_day: ?int, reset_day: ?string} */
     protected array $lastQuota = ['limit_day' => null, 'remaining_day' => null, 'reset_day' => null];
 
+    public function __construct(protected TradingConfigService $config) {}
+
+    protected function apiKey(): string
+    {
+        return (string) ($this->config->get('news.api_key') ?: config('news.api_key'));
+    }
+
     public function fetch(string $query, array $filters = []): array
     {
-        $key = config('news.api_key');
+        $key = $this->apiKey();
         if (! $key) {
-            throw new \RuntimeException('FreeNewsApi key is not configured (NEWS_API_KEY).');
+            throw new \RuntimeException('FreeNewsApi key is not configured (set news.api_key or NEWS_API_KEY).');
         }
 
         // FreeNewsApi currently 500s when country/language filters are combined
@@ -75,9 +87,9 @@ class FreeNewsApiProvider implements NewsProvider
 
     public function fetchDetails(string $uuid): array
     {
-        $key = config('news.api_key');
+        $key = $this->apiKey();
         if (! $key) {
-            throw new \RuntimeException('FreeNewsApi key is not configured (NEWS_API_KEY).');
+            throw new \RuntimeException('FreeNewsApi key is not configured (set news.api_key or NEWS_API_KEY).');
         }
 
         if ($uuid === '') {

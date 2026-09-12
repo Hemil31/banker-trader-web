@@ -117,12 +117,17 @@ class NewsService
     }
 
     /**
-     * Whether the news component is wired on (env kill-switch + strategy toggle).
+     * Whether the news component is wired on (env kill-switch + strategy
+     * toggle + a configured key). The key is DB-backed (trading_configs:
+     * news.api_key) with an env fallback (NEWS_API_KEY) — see
+     * FreeNewsApiProvider::apiKey(), which resolves it the same way.
      */
     public function available(): bool
     {
+        $apiKey = (string) ($this->config->get('news.api_key') ?: config('news.api_key'));
+
         return (bool) config('news.enabled', true)
-            && (bool) config('news.api_key')
+            && $apiKey !== ''
             && $this->config->bool('news.enabled', true);
     }
 

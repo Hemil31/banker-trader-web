@@ -42,7 +42,7 @@ class NewsSentimentTest extends TestCase
             ], 200),
         ]);
 
-        $articles = (new FreeNewsApiProvider)->fetch('Reliance', ['language' => 'en', 'country' => 'in']);
+        $articles = app(FreeNewsApiProvider::class)->fetch('Reliance', ['language' => 'en', 'country' => 'in']);
 
         Http::assertSent(fn ($request) => str_contains($request->url(), '/news')
             && $request->hasHeader('x-api-key', 'test-key')
@@ -63,7 +63,7 @@ class NewsSentimentTest extends TestCase
 
         $this->expectExceptionMessage('FreeNewsApi key is not configured');
 
-        (new FreeNewsApiProvider)->fetch('Reliance');
+        app(FreeNewsApiProvider::class)->fetch('Reliance');
     }
 
     public function test_provider_throws_on_failed_response(): void
@@ -72,7 +72,7 @@ class NewsSentimentTest extends TestCase
 
         $this->expectExceptionMessage('FreeNewsApi request failed');
 
-        (new FreeNewsApiProvider)->fetch('Reliance');
+        app(FreeNewsApiProvider::class)->fetch('Reliance');
     }
 
     public function test_sentiment_scores_positive_headlines_high(): void

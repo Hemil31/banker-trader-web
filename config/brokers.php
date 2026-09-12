@@ -43,6 +43,12 @@ return [
         'api_base' => env('KOTAK_API_BASE', 'https://mis.kotaksecurities.com'),
     ],
 
+    // MegaBull is a free India paper-trading API — each user generates and
+    // supplies their own personal api-key (no app-level secret required).
+    'megabull' => [
+        'api_base' => env('MEGABULL_API_BASE', 'https://api.megabull.in'),
+    ],
+
     // Future brokers:
     // 'zerodha' => [...],
     // 'paytm'   => [...],

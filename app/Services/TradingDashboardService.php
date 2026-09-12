@@ -58,7 +58,7 @@ class TradingDashboardService
             'portfolio' => $portfolio,
             'open_positions' => $open,
             'recent_signals' => $this->signals(8),
-            'recent_paper_trades' => $this->paperTrades(5),
+            'recent_paper_trades' => $this->paperTrades(5, $user),
             'market_bars' => MarketData::count(),
             'config_count' => TradingConfig::count(),
         ];
@@ -92,13 +92,13 @@ class TradingDashboardService
     }
 
     /**
-     * Positions (open and/or closed) for the paper account.
+     * Positions (open and/or closed) for the user's own paper account.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function positions(?string $status = null, int $limit = 100): array
+    public function positions(?string $status = null, int $limit = 100, ?User $user = null): array
     {
-        $account = $this->account();
+        $account = $this->account($user);
 
         return Position::with('stock')
             ->where('trading_account_id', $account->id)
@@ -111,13 +111,16 @@ class TradingDashboardService
     }
 
     /**
-     * Lane-by-lane paper trade ledger rows.
+     * Lane-by-lane paper trade ledger rows for the user's own account.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function paperTrades(int $limit = 50): array
+    public function paperTrades(int $limit = 50, ?User $user = null): array
     {
-        return PaperTrade::latest('id')
+        $account = $this->account($user);
+
+        return PaperTrade::where('trading_account_id', $account->id)
+            ->latest('id')
             ->limit($limit)
             ->get()
             ->map(fn (PaperTrade $trade) => [

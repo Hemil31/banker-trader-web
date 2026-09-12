@@ -6,10 +6,12 @@ use App\Models\Order;
 use App\Models\PaperTrade;
 use App\Models\Position;
 use App\Models\TradingAccount;
+use App\Models\TradingConfig;
 use App\Models\TradingPnlLedger;
 use App\Models\TradingSignal;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
 /**
  * Company-level view over every user, account and trading outcome.
@@ -17,6 +19,48 @@ use Illuminate\Support\Collection;
  */
 class AdminDashboardService
 {
+    public function __construct(protected TradingConfigService $config) {}
+
+    /**
+     * App-level settings that are deliberately kept out of the per-user
+     * mobile config API (is_editable = false) — shared secrets like the
+     * News API key, not per-account tuning knobs. Only an admin may view or
+     * change these, from the web console.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function systemSettings(): array
+    {
+        return TradingConfig::where('is_editable', false)
+            ->orderBy('group')
+            ->orderBy('key')
+            ->get()
+            ->map(fn (TradingConfig $row) => [
+                'key' => $row->key,
+                'group' => $row->group,
+                'label' => $row->label,
+                'description' => $row->description,
+                'value' => (string) $row->value,
+            ])
+            ->all();
+    }
+
+    /**
+     * Update one admin-only setting. Unlike the per-user config endpoint,
+     * this intentionally does not check is_editable — that flag exists to
+     * keep these keys off the user-facing API, not to lock admins out.
+     */
+    public function updateSystemSetting(string $key, string $value, string $actor): void
+    {
+        $row = TradingConfig::where('key', $key)->where('is_editable', false)->first();
+
+        if (! $row) {
+            throw new InvalidArgumentException("Unknown or user-editable setting: {$key}");
+        }
+
+        $this->config->set($key, $value, $actor);
+    }
+
     /**
      * Master table of all platform users.
      *

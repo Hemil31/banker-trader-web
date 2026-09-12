@@ -113,6 +113,7 @@ class TradingConfig extends Model
         string $type = 'float',
         ?string $label = null,
         ?string $description = null,
+        bool $editable = true,
     ): void {
         if (static::where('key', $key)->exists()) {
             return;
@@ -131,7 +132,7 @@ class TradingConfig extends Model
             'value' => $value,
             'label' => $label ?? $key,
             'description' => $description,
-            'is_editable' => true,
+            'is_editable' => $editable,
         ]);
     }
 
@@ -179,5 +180,19 @@ class TradingConfig extends Model
         foreach ($defaults as [$group, $key, $type, $label, $desc, $value]) {
             static::registerDefault($key, $value, $group, $type, $label, $desc);
         }
+
+        // A secret, not a per-account tuning knob: kept out of the editable
+        // set so it never surfaces on GET /api/trading/config or accepts a
+        // PATCH from the per-user mobile Config tab. Set it directly in the
+        // DB (or via TradingConfigService::set() from a trusted context).
+        static::registerDefault(
+            'news.api_key',
+            '',
+            'news',
+            'string',
+            'News API key',
+            'FreeNewsApi.io key sent as the x-api-key header. DB-backed with an env fallback (NEWS_API_KEY) — see FreeNewsApiProvider.',
+            editable: false,
+        );
     }
 }

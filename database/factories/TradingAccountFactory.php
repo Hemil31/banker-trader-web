@@ -110,4 +110,24 @@ class TradingAccountFactory extends Factory
             'mode' => 'live',
         ]);
     }
+
+    /**
+     * Attach a connected MegaBull paper-trading account (api-key credential;
+     * stays in 'paper' mode since it trades virtual money).
+     */
+    public function connectedMegaBull(): static
+    {
+        return $this->state(fn (): array => [
+            'broker_id' => fn () => Broker::updateOrCreate(
+                ['slug' => 'megabull'],
+                ['name' => 'MegaBull', 'paper' => true, 'active' => true]
+            )->id,
+            'credentials' => [
+                'api_key' => 'fake-megabull-api-key',
+                'account_name' => 'Test User',
+                'connected_at' => now()->toISOString(),
+            ],
+            'mode' => 'paper',
+        ]);
+    }
 }

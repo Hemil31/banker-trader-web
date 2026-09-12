@@ -7,7 +7,6 @@ use App\Models\Order;
 use App\Models\PaperTrade;
 use App\Models\Position;
 use App\Models\Stock;
-use App\Models\TradingAccount;
 use App\Models\TradingSignal;
 use App\Models\User;
 use App\Services\PaperTradingService;
@@ -130,7 +129,7 @@ class PaperTradingServiceTest extends TestCase
         $this->assertSame('stop_loss', $paper->exit_reason);
         $this->assertLessThan(0.0, (float) $paper->pnl_net);
 
-        $account = TradingAccount::where('mode', 'paper')->first();
+        $account = $this->service->paperAccount($this->user);
         $this->assertSame(0.0, (float) $account->invested_amount, 'no open capital after exit');
     }
 }

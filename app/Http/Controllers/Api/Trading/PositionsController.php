@@ -20,6 +20,8 @@ class PositionsController extends Controller
 
         $positions = $this->dashboard->positions(
             is_string($status) && $status !== '' ? $status : null,
+            100,
+            $request->user(),
         );
 
         return $this->successResponse($positions, 'Positions');

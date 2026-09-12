@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, KeyRound } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -12,7 +12,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes/admin';
+import { dashboard, settings } from '@/routes/admin';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -20,6 +20,11 @@ const mainNavItems: NavItem[] = [
         title: 'Admin console',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Integration settings',
+        href: settings(),
+        icon: KeyRound,
     },
 ];
 

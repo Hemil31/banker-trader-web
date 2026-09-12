@@ -1,400 +1,107 @@
-# BankerTrader — Coding Standards & Architecture Guide
+# CLAUDE.md
 
-This file is the **source of truth** for how code is written in this Laravel
-application. It merges clean-architecture / SOLID best practices with
-production conventions already proven in this team's other apps (see the
-`ai-powered-form-builder` reference). Follow it for every task.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Principles (non-negotiable)
+## Project overview
+
+BankerTrader is a trading-automation platform backend: Laravel 12 / PHP 8.3, MySQL 8, Laravel Passport (OAuth2) for the JSON API, and Inertia + React + Vite for a web admin dashboard. It hosts the API consumed by a separate Flutter mobile client (`banker-trader-mobile`, not in this repo) and runs an automated paper/live trading engine (signal scanning → risk sizing → order execution) on a schedule.
+
+**Database is MySQL only** — every table uses UUID primary keys (`HasUuids` on all models); sqlite is not supported anywhere, including tests.
+
+## Commands
+
+```bash
+# Setup
+composer setup                 # install, .env, key:generate, migrate, npm install+build
+
+# Dev servers
+php artisan serve              # API (also `composer dev` runs the full artisan dev stack)
+npm run dev                    # Vite dev server for the Inertia/React frontend (Node needed locally only)
+
+# Full CI gate (what .github/workflows/tests.yml runs)
+composer ci:check              # npm run check && tsc --noEmit && phpunit
+
+# Individual gates
+composer test                  # config:clear + pint --test + phpstan + php artisan test
+php artisan test                                   # PHPUnit, all suites
+php artisan test --filter=PaperTradingServiceTest   # single test class
+php artisan test tests/Feature/Broker/AngelBrokerTest.php
+./vendor/bin/phpstan analyse --memory-limit=1G      # level 7; default memory limit crashes on this box
+./vendor/bin/pint                                   # fix style (laravel preset)
+./vendor/bin/pint --test                            # check only
+npm run check                                       # eslint/prettier for resources/js
+npm run types:check                                 # tsc --noEmit
+
+# Domain artisan commands (also scheduled — see bootstrap/app.php)
+php artisan trader:auto [--account=] [--symbol=]    # run the automation engine for enabled accounts
+php artisan news:fetch                              # ingest news for sentiment
+php artisan trader:paper                            # (PaperTradingRun command)
+php artisan market:ingest                           # (MarketDataIngest command)
+```
+
+Tests run against a real MySQL DB (`bankertrader_test`, see `phpunit.xml`), not sqlite — create it locally before running `php artisan test`.
+
+## Architecture
+
+### Request flow & response envelope
+
+`Request → Controller → Service → (Contract/Model) → Response`. Controllers are thin (validate via FormRequest, call one service, format the response) — business logic lives in `app/Services/`. Most services operate on Eloquent models directly; the repository/interface pattern (`app/Contracts/*`, bound in `AppServiceProvider::register()`) is reserved for things that need a swappable backend: `AuthRepositoryInterface`, `MarketDataProvider`, `NewsProvider`, `SentimentAnalyzer`, and the broker adapters. Don't assume a repository exists for every model — check `app/Repositories/` (currently just `AuthRepository`) before creating one.
+
+Every API response uses the same JSON envelope via `App\Traits\ResponseStructure` (`successResponse`/`errorResponse`/`paginated`): `{ "success": bool, "message": string, "data"|"errors": ... }`. Controllers extending it should use these helpers rather than ad-hoc `response()->json(...)`.
+
+### API authentication (Passport)
+
+- `api` guard uses the `passport` driver (`config/auth.php`); `User` uses `HasApiTokens` + `Laravel\Passport\Contracts\OAuthenticatable`.
+- The password-grant OAuth client is app-level (`config('passport.client_id/secret')`, from `.env`); `Passport::enablePasswordGrant()` is called in `AppServiceProvider::boot()`.
+- **Tokens are issued in-process**, not via a nested HTTP call to `/oauth/token` (that deadlocks under the single-worker `php -S` dev server). `App\Services\AuthService` builds a `Symfony\Component\HttpFoundation\Request`, converts it with `PsrHttpFactory`, and calls `AuthorizationServer::respondToAccessTokenRequest()` directly. Follow this pattern for any new grant-based flow.
+- New authenticated API routes go behind `auth:api` in `routes/api.php`; admin-only routes additionally use the `is_admin` middleware alias (`EnsureUserIsAdmin`).
+
+### Trading engine
+
+Core pipeline, wired together per run (manual `/api/trading/run`, `paper-trades`/`positions` reads, or the scheduled `trader:auto`):
+
+- `SignalScanner` / `SignalEngine` — rank tradable setups using `MarketDataProvider` (bound to `YahooFinanceProvider`) + `IndicatorCalculator`.
+- `RiskManager` — position/day-level guardrails (`evaluateHalt()`: daily loss cap, duplicate-signal check, and `daily_target_reached`, which blocks new entries but lets open positions exit normally).
+- `PositionSizer` — converts a signal into an order size; `position.max_pct_per_stock` / `max_exposure_pct` are **percentages** (e.g. `20`, `70`), not fractions — divide by 100, don't re-introduce the old fraction bug.
+- `ExecutionEngine` — places orders through a `BrokerAdapter` and updates daily PnL.
+- `PortfolioManager` — open positions, unrealized PnL rebuild, summaries.
+- `BacktestEngine` — historical simulation (`Backtest` model); `win_rate`/`profit_factor`/`avg_holding_days`/`buyhold_cagr` are `double` columns (MySQL strict mode rejects `float`), and `profit_factor` is normalized to `null` instead of `INF`.
+- `PaperTradingService::runForAccount()` — the ranked-scan → size → execute path, shared by manual paper runs and `AutoTradingService`.
+- `AutoTradingService` — loops accounts where automation is enabled (see below), skips live accounts with no connected broker, logs a `SystemEvent`, and applies per-account config overrides for the duration of the run.
+
+### Brokers
+
+`app/Contracts/Brokers/BrokerAdapter` is the interface every broker implements (`placeOrder`, `cancelOrder`, `getPositions`, `getBalances`, `getOrderStatus`, `isApiAvailable`); `BrokerManager` resolves a slug (`paper`, `upstox`, `zerodha`, `angel`, `kotak`) to its adapter, so sizing/execution/reconciliation call sites never change when a broker is added. `UpstoxBroker` is the working live implementation (REST + V3 WebSocket feed via `WebsocketApi`); `PaperBroker` is the simulator; others are scaffolds. Per-user OAuth tokens are stored encrypted in `trading_accounts.credentials` (`longText`, not `json` — it holds `encrypted:json` ciphertext which MySQL's `json` type rejects) via `BrokerOAuthService`; app-level broker credentials live in `config/brokers.php`. Angel uses a publisher-login redirect (token comes back in the query string, no code exchange); Kotak authenticates server-side (TOTP + MPIN).
+
+### Per-account automation config
+
+`trading_accounts.settings` (json) holds per-account overrides. `TradingAccount::isAutomationEnabled()` requires both a master switch and a strategy switch; `configOverrides()` exposes `risk.capital`, `risk.daily_target`/`daily_loss_cap` (percentages), and passthrough `position.*`/`entry.*`/`exit.*` keys. `TradingConfigService` is bound `scoped()` (one instance per request/command run) and resolves config as **overrides → snapshot → DB**; `useOverrides()` lets `AutoTradingService` apply one account's overrides so every downstream service (scanner, sizer, risk, execution) sees them without leaking across accounts or requests.
+
+### News & sentiment
+
+`NewsProvider` (bound to `FreeNewsApiProvider`, `config/news.php`) feeds headlines into `SentimentAnalyzer` (bound to `KeywordSentimentAnalyzer` by default, selectable via `NEWS_SENTIMENT_DRIVER`) — sentiment score feeds into the signal score. Swapping in an LLM-based analyzer means implementing `SentimentAnalyzer` and rebinding it in `AppServiceProvider`, not touching engine code.
+
+### Scheduler
+
+Defined in `bootstrap/app.php` (`->withSchedule()`), not `app/Console/Kernel.php`: `trader:auto` every 15 min on weekdays 09:15–15:25 IST, `news:fetch` hourly in the same window, both `withoutOverlapping()`. The host still needs `* * * * * php artisan schedule:run` in cron — the schedule definition alone doesn't run anything.
+
+## Coding conventions
 
 1. **Think before coding** — state ambiguity, present options, ask don't guess.
 2. **Simplicity first** — build only what was asked, no speculative abstractions.
-3. **Surgical changes** — every line traces to the request; don't "improve"
-   adjacent code.
+3. **Surgical changes** — every line traces to the request; don't "improve" adjacent code.
 4. **Goal-driven execution** — define success criteria, loop until met.
 
-## SOLID, applied
+- Controllers stay thin: FormRequest validation → one service call → response via `ResponseStructure`. No direct queries or business logic in controllers.
+- Authorization goes through Policies (`$this->authorize(...)`), not ad-hoc checks in controllers.
+- New pluggable integrations (broker, market data source, news source, sentiment) get a `Contracts/` interface + binding in `AppServiceProvider`, mirroring the existing ones — don't hardcode a new external API call directly into a service.
+- Run `pint`, `phpstan`, and the relevant `php artisan test` filter before considering a backend change done; run `npm run check` / `types:check` for frontend changes.
 
-- **S — Single Responsibility:** each class has exactly one reason to change.
-  Controllers never contain business logic.
-- **O — Open/Closed:** extend behavior via new classes, don't modify existing ones.
-- **L — Liskov Substitution:** implementations must be drop-in for their interfaces.
-- **I — Interface Segregation:** many focused interfaces > one general interface.
-- **D — Dependency Inversion:** depend on abstractions (interfaces), not concretions.
+## Deploy
 
-## Folder structure
+`git push` → on server: `git pull` → `php artisan migrate --force` → `php artisan optimize`. No build step on the server — Node is never required there; frontend assets are built locally/CI and `public/build/` is committed on purpose (SSR is disabled in `config/inertia.php`).
 
-```
-app/
-├── Actions/            # Small single-purpose service classes (Fortify etc.)
-├── Concerns/           # Reusable model traits/concerns
-├── Console/Commands/   # Custom artisan commands
-├── Contracts/          # Interfaces
-│   └── Repositories/   # Repository interfaces (e.g. PostRepositoryInterface)
-├── DTOs/               # Simple data transfer objects
-├── Enums/              # Typed enums: Role, PostStatus, GenerationStatus ...
-├── Events/             # Domain events: PostPublished, CommentCreated ...
-├── Exceptions/         # Custom exceptions (e.g. PostCannotBePublishedException)
-├── Http/
-│   ├── Controllers/    # Thin controllers — only HTTP concerns
-│   ├── Middleware/
-│   ├── Requests/       # FormRequest validation classes
-│   └── Resources/      # API resources for response formatting
-├── Jobs/               # Queue jobs (heavy/async work)
-├── Listeners/          # React to events: notifications, cache, logs
-├── Models/             # Eloquent models + relationships + scopes
-├── Notifications/      # Mailable/notification classes
-├── Policies/           # Authorization policies
-├── Providers/          # Service providers + interface bindings
-├── Repositories/       # Data access layer
-│   └── Eloquent/       # Concrete implementations
-├── Services/           # Business logic layer
-└── Traits/             # Shared traits
+## Related
 
-database/
-├── factories/
-├── migrations/
-└── seeders/
-
-resources/views/        # Blade views (or Inertia React pages)
-routes/
-├── web.php             # Browser routes
-└── api.php             # JSON API routes
-
-tests/
-├── Feature/
-└── Unit/
-```
-
-## Layering rule (request → data)
-
-```
-Request → Controller → Service → Repository → Model
-              ↑            ↑          ↑
-          validates   business     SQL/query
-                       logic        only
-```
-
-- **Controllers** are thin: validate, authorize, call **one** service, return a
-  response. No business logic, no direct queries.
-- **Form Requests** handle validation (and authorization checks).
-- **Services** own business rules; dependencies are constructor-injected.
-- **Repositories** do all DB/query work; models never leak into controllers.
-- **Models** stay as data containers + relationships + scopes.
-- **Policies** centralize authorization.
-- **Resources** format API responses consistently.
-
-## Base repository
-
-Extend a `BaseRepository` (in `app/Repositories/BaseRepository.php`) for
-generic CRUD, then add scoped queries in the concrete class.
-
-```php
-// app/Repositories/BaseRepository.php
-abstract class BaseRepository implements BaseRepositoryInterface
-{
-    protected Model $model;
-
-    public function __construct(Model $model)
-    {
-        $this->model = $model;
-    }
-
-    public function find(int $id): ?Model
-    {
-        return $this->model->newQuery()->find($id);
-    }
-
-    public function create(array $data): Model
-    {
-        return $this->model->newQuery()->create($data);
-    }
-
-    public function update(int $id, array $data): ?Model
-    {
-        $model = $this->find($id);
-        if (! $model) {
-            return null;
-        }
-        $model->fill($data)->save();
-
-        return $model->refresh();
-    }
-
-    public function delete(int $id): bool
-    {
-        return (bool) $this->findOrFail($id)->delete();
-    }
-
-    public function paginate(int $perPage = 15): LengthAwarePaginator
-    {
-        return $this->model->newQuery()->paginate($perPage);
-    }
-}
-```
-
-Concrete repository (implements its interface, extends `BaseRepository`):
-
-```php
-// app/Repositories/Eloquent/EloquentPostRepository.php
-class EloquentPostRepository extends BaseRepository implements PostRepositoryInterface
-{
-    public function findBySlug(string $slug): ?Post
-    {
-        return $this->model->newQuery()
-            ->with(['author', 'categories'])
-            ->where('slug', $slug)
-            ->first();
-    }
-
-    public function getPublished(int $perPage = 15): LengthAwarePaginator
-    {
-        return $this->model->newQuery()
-            ->with(['author', 'categories'])
-            ->published()
-            ->latest('published_at')
-            ->paginate($perPage);
-    }
-}
-```
-
-## Service layer
-
-Services own the business logic and dispatch events. Dependencies are
-constructor-injected (Laravel auto-resolves them). Wrap multi-step operations
-in transactions and dispatch events on success.
-
-```php
-// app/Services/PostService.php
-class PostService
-{
-    public function __construct(
-        private readonly PostRepositoryInterface $posts,
-    ) {}
-
-    public function createPost(array $data, int $authorId): Post
-    {
-        return DB::transaction(function () use ($data, $authorId) {
-            $post = $this->posts->create([
-                'author_id' => $authorId,
-                'slug'      => $this->generateUniqueSlug($data['title']),
-                ...$data,
-            ]);
-
-            if (! empty($data['categories'])) {
-                $post->categories()->attach($data['categories']);
-            }
-
-            PostCreated::dispatch($post);
-
-            return $post->fresh(['author', 'categories']);
-        });
-    }
-}
-```
-
-## Thin controller
-
-```php
-// app/Http/Controllers/PostController.php
-class PostController extends Controller
-{
-    public function __construct(
-        private readonly PostService $posts,
-    ) {}
-
-    public function store(StorePostRequest $request): JsonResponse
-    {
-        $post = $this->posts->createPost($request->validated(), $request->user()->id);
-
-        return (new PostResource($post))->response()->setStatusCode(201);
-    }
-
-    public function destroy(Post $post): JsonResponse
-    {
-        $this->authorize('delete', $post);
-        $this->posts->deletePost($post);
-
-        return response()->json(['message' => 'Deleted successfully'], 204);
-    }
-}
-```
-
-## Validation — FormRequest
-
-```php
-// app/Http/Requests/StorePostRequest.php
-class StorePostRequest extends FormRequest
-{
-    public function authorize(): bool
-    {
-        return $this->user()->can('create', Post::class);
-    }
-
-    public function rules(): array
-    {
-        return [
-            'title'       => ['required', 'string', 'max:255'],
-            'excerpt'     => ['nullable', 'string', 'max:500'],
-            'content'     => ['required', 'string'],
-            'status'      => ['nullable', 'in:draft,review,published,archived'],
-            'is_featured' => ['nullable', 'boolean'],
-            'categories'  => ['nullable', 'array'],
-            'categories.*' => ['exists:categories,id'],
-        ];
-    }
-}
-```
-
-## Authorization — Policy
-
-Register policies and only authorize per-action. Keep policies free of
-business logic — they only answer "can this user do X?"
-
-```php
-// app/Policies/PostPolicy.php
-class PostPolicy
-{
-    public function view(User $user, Post $post): bool
-    {
-        return $user->id === $post->author_id || $post->isPublished();
-    }
-
-    public function update(User $user, Post $post): bool
-    {
-        return $user->id === $post->author_id || $user->hasRole('admin');
-    }
-
-    public function delete(User $user, Post $post): bool
-    {
-        return $user->id === $post->author_id || $user->hasRole('admin');
-    }
-}
-```
-
-## Service-provider bindings
-
-Bind interfaces to their concrete implementations in a provider. In this app
-use `app/Providers/AppServiceProvider.php` (or a dedicated provider).
-
-```php
-// app/Providers/AppServiceProvider.php
-public function register(): void
-{
-    $this->app->bind(PostRepositoryInterface::class, EloquentPostRepository::class);
-    $this->app->bind(CategoryRepositoryInterface::class, EloquentCategoryRepository::class);
-}
-
-public function boot(): void
-{
-    $this->app['events']->listen([
-        PostCreated::class,
-        PostPublished::class,
-    ], LogActivity::class);
-}
-```
-
-## API authentication (Passport)
-
-Passport-backed API auth lives under `app/Http/Controllers/Api/AuthController.php`
-with a service/repository split. Endpoints: `POST api/login`, `refresh`, `logout`,
-`forgot-password`, `reset-password`, `change-password`, and `GET api/me`.
-
-Key conventions:
-- **`api` guard** uses `driver => 'passport'` (`config/auth.php`); User model uses
-  `HasApiTokens` and implements `Laravel\Passport\Contracts\OAuthenticatable`.
-- **OAuth client** is a password-grant client referenced via
-  `config('passport.client_id')` / `config('passport.client_secret')` (from `.env`).
-  Secrets are stored **hashed** in the `oauth_clients` table; plaintext lives in `.env`
-  only. `Passport::enablePasswordGrant()` is called in `AppServiceProvider::boot()`.
-- **Tokens are issued in-process** (NOT a nested HTTP call to `/oauth/token`, which
-  deadlocks under the single-worker `php -S` dev server). `AuthService` builds a
-  `SymfonyRequest`, converts it via `PsrHttpFactory`, and calls
-  `AuthorizationServer::respondToAccessTokenRequest()` directly.
-- Response shape comes from the `App\Traits\ResponseStructure` trait
-  (`successResponse` / `errorResponse` / `paginated`), mirroring the reference
-  project. Controllers read results via `$result->getData(true)`.
-- Add new authenticated API routes behind the `auth:api` middleware in `routes/api.php`.
-
-## API resources
-
-Resources format responses consistently. Use `whenLoaded` for relationships
-and `when()` for conditional fields.
-
-```php
-// app/Http/Resources/PostResource.php
-class PostResource extends JsonResource
-{
-    public function toArray(Request $request): array
-    {
-        return [
-            'id'           => $this->id,
-            'title'        => $this->title,
-            'slug'         => $this->slug,
-            'status'       => $this->status,
-            'is_featured'  => $this->is_featured,
-            'published_at' => $this->published_at?->toIso8601String(),
-            'author'       => new UserResource($this->whenLoaded('author')),
-            'categories'   => CategoryResource::collection($this->whenLoaded('categories')),
-        ];
-    }
-}
-```
-
-## Routes
-
-Keep routes RESTful and named. Separate public vs authenticated groups.
-
-```php
-// routes/api.php
-Route::get('posts', [PostController::class, 'index']);
-Route::get('posts/{slug}', [PostController::class, 'show']);
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('posts', [PostController::class, 'store']);
-    Route::put('posts/{post}', [PostController::class, 'update']);
-    Route::delete('posts/{post}', [PostController::class, 'destroy']);
-    Route::post('posts/{post}/publish', [PostController::class, 'publish']);
-});
-```
-
-## Common mistakes to avoid
-
-- ❌ Putting business logic in controllers — delegate to services.
-- ❌ Querying the DB directly in controllers — use repositories.
-- ❌ Skipping validation — always use FormRequests, never `$request->all()`.
-- ❌ Skipping authorization — always call `$this->authorize(...)` or a policy.
-- ❌ Returning Eloquent models directly from API controllers — use Resources.
-- ❌ Large un-scoped repository classes — keep them focused.
-
-## Quick-start checklist for a new feature
-
-1. Create the **model** + migration.
-2. Create `app/Contracts/Repositories/{Name}RepositoryInterface.php` and
-   `app/Repositories/Eloquent/Eloquent{Name}Repository.php` extending `BaseRepository`.
-3. Register the interface binding in `AppServiceProvider::register()`.
-4. Create `app/Services/{Name}Service.php` with the business logic.
-5. Create the **FormRequest** for validation.
-6. Create the **controller** — thin, delegates to the service.
-7. Add the **route** in `routes/web.php` or `routes/api.php`.
-8. Add a **policy** if the feature is user-scoped; register it.
-9. Create **Resources** for any JSON output.
-10. Dispatch **events** from the service; register listeners in `boot()`.
-11. Write a **feature test** in `tests/Feature/`.
-
-## Testing
-
-- Feature tests cover full HTTP flows (`RefreshDatabase`).
-- Unit tests cover services (mock the repository interface).
-- Keep tests focused on behavior, not implementation.
-
-```
-tests/Feature/PostControllerTest.php
-tests/Unit/PostServiceTest.php
-```
-
----
-
-Whenever you start a task, re-read this file, follow the layering rule, and
-apply the quick-start checklist. This keeps the codebase maintainable,
-testable, and scalable.
+- Decision log: `DECISIONS.md` (read the last few entries before starting work — it has context not in this file, e.g. in-progress/pending items).
+- Mobile client (separate repo): `banker-trader-mobile`.

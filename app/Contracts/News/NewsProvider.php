@@ -13,7 +13,7 @@ interface NewsProvider
      * Fetch a lightweight list of articles matching a query.
      *
      * @param  array<string, mixed>  $filters  country, language, topic,
-     *                                        published_after, published_before, order_by
+     *                                         published_after, published_before, order_by
      * @return array<int, array{
      *     uuid: string,
      *     title: string,

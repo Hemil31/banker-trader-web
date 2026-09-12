@@ -14,6 +14,7 @@ use App\Services\SignalScanner;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -162,7 +163,7 @@ class NewsSentimentTest extends TestCase
     public function test_news_service_pauses_when_daily_cap_is_reached(): void
     {
         TradingConfig::set('news.daily_cap', 5);
-        \Illuminate\Support\Facades\Cache::forever('news_requests:'.now()->toDateString(), 5);
+        Cache::forever('news_requests:'.now()->toDateString(), 5);
 
         $provider = $this->createMock(NewsProvider::class);
         $provider->expects($this->never())->method('fetch');

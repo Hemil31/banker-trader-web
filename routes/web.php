@@ -1,26 +1,21 @@
 <?php
 
-use App\Http\Controllers\Trading\DashboardController;
-use App\Http\Controllers\Trading\PaperRunController;
-use App\Http\Controllers\Trading\PaperTradesController;
-use App\Http\Controllers\Trading\PositionsController;
-use App\Http\Controllers\Trading\SignalsController;
-use App\Http\Controllers\Trading\TradingConfigController;
+use App\Http\Controllers\Admin\AdminController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| The web is the company-admin console. Regular users authenticate only
+| through the mobile client via the Passport API (routes/api.php), so the
+| only public web page is the admin login (registered by Fortify).
+|
+*/
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+Route::redirect('/', '/login')->name('home');
 
-    Route::get('trading/signals', [SignalsController::class, 'index'])->name('trading.signals');
-    Route::get('trading/positions', [PositionsController::class, 'index'])->name('trading.positions');
-    Route::get('trading/paper-trades', [PaperTradesController::class, 'index'])->name('trading.paper-trades');
-
-    Route::get('trading/config', [TradingConfigController::class, 'index'])->name('trading.config');
-    Route::patch('trading/config', [TradingConfigController::class, 'update'])->name('trading.config.update');
-
-    Route::post('trading/run', [PaperRunController::class, 'store'])->name('trading.run');
+Route::middleware(['auth', 'is_admin'])->group(function () {
+    Route::get('admin', [AdminController::class, 'index'])->name('admin.dashboard');
 });
-
-require __DIR__.'/settings.php';

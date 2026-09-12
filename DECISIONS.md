@@ -76,3 +76,28 @@
 - `brokers.credentials` json-column fallback in `BrokerOAuthService` is an unrelated pre-existing uncommitted change (present before this session) — do not revert; commit separately.
 - Repo-wide Pint/PHPStan already drift on OLD files (`NewsController`, `FreeNewsApiProvider`, migrations, `NewsSentimentTest`, `recentNews()` generics fixed) — pre-existing; not caused by this session.
 - PHPStan needs `--memory-limit=1G` on this box.
+
+## 2026-09-12 — Frontend build fix: finish admin-only web cleanup (dead route/settings imports)
+**Status:** completed
+
+**Changes:**
+- A prior session made the web admin-only (login → `/admin` only) and deleted all web settings/profile/2FA/passkey pages + `routes/settings.php`, but left several live files importing now-nonexistent `@/routes/*` modules, breaking `npm run build`. This session finished that cleanup, frontend-only.
+- Rewired `resources/js/components/app-sidebar.tsx`: `import { dashboard } from '@/routes'` → `@/routes/admin`; sidebar nav reduced to a single `NavMain` item (`Admin console` → `dashboard()`, `LayoutGrid` icon); logo `Link` now points at `dashboard()`; removed the Laravel starter-kit `NavFooter`/footer nav items (Repository/Documentation links) — no longer relevant to a single-page admin console. `nav-footer.tsx` itself left in place (unused but out of scope).
+- Rewired `resources/js/components/user-menu-content.tsx`: removed the dead `import { edit } from '@/routes/profile'` and the Settings/profile dropdown entry; kept `logout` from `@/routes`. Also dropped the now-unused `DropdownMenuGroup` import left over from removing that entry.
+- `resources/js/app.tsx`: removed `import SettingsLayout from '@/layouts/settings/layout'` and the `name.startsWith('settings/')` Inertia layout-resolver case (kept `welcome`/`auth/` cases as-is, minimal diff).
+- **Deleted dead files** (verified via `grep -r` that nothing outside their own cluster imports them):
+  - `resources/js/layouts/settings/layout.tsx` (imported `@/routes/{appearance,profile,security}`)
+  - `resources/js/layouts/app/app-header-layout.tsx` + `resources/js/components/app-header.tsx` (imported dead `@/routes` `dashboard`; confirmed unused elsewhere — `app-layout.tsx` renders `app-sidebar-layout`, not `app-header-layout`)
+  - `resources/js/components/manage-two-factor.tsx`, `two-factor-recovery-codes.tsx`, `two-factor-setup-modal.tsx`, `resources/js/hooks/use-two-factor-auth.ts` (all imported `@/routes/two-factor`)
+  - `resources/js/components/manage-passkeys.tsx`, `passkey-item.tsx`, `passkey-register.tsx`, `passkey-verify.tsx` (passkey family, only referenced each other)
+  - `resources/js/components/delete-user.tsx` — **not in the original plan**, found during `tsc --noEmit` verification: imported `@/actions/App/Http/Controllers/Settings/ProfileController`, which no longer exists (backend action deleted in the prior session along with the profile settings page). Confirmed zero importers anywhere in `resources/js/`. Deleted as the same class of orphaned leftover as the files above.
+- `layouts/settings/` directory removed (now empty).
+
+**Verification:** `npm run build` succeeds (manifest regenerated). `npm run types:check` (`tsc --noEmit`) clean, zero errors. `npm run check` (eslint/prettier) still reports its pre-existing 14-file formatting drift (`DECISIONS.md`, `README.md`, built `public/build/**` assets, `resources/js/lib/format.ts`, `resources/js/pages/admin/index.tsx`, `resources/js/types/trading.ts`) — none of these are files touched this session; no new failures introduced.
+
+**Pending:**
+- None for this cleanup. The pre-existing `npm run check` formatting drift (14 files, unrelated to this session) is still there — not fixed, per instructions.
+
+**Notes:**
+- `resources/js/routes/` now only contains: `index`, `admin`, `api`, `login`, `password`, `passport`, `storage` — every `@/routes/...` import in the tree resolves to one of these.
+- Did not touch backend (PHP), `routes/`, or `resources/js/types/` (not needed — `tsc --noEmit` had nothing to complain about there once `delete-user.tsx` was gone).

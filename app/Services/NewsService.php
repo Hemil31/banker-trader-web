@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\Analysis\SentimentAnalyzer;
 use App\Contracts\News\NewsProvider;
 use App\Models\NewsArticle;
 use App\Models\Stock;
@@ -12,8 +13,9 @@ use Illuminate\Support\Facades\Log;
 /**
  * Fetches headlines for a stock (symbol first, then the company name as a
  * fallback) and derives a 0..100 sentiment score that feeds the composite
- * signal score. The score is a keyword-based heuristic — no paid NLP — so a
- * neutral/no-opinion state always lands on 50.
+ * signal score. Sentiment is produced by an injectable SentimentAnalyzer — the
+ * free keyword heuristic today, swappable for an LLM provider via
+ * config('news.sentiment_driver'). A neutral/no-opinion state always lands on 50.
  *
  * Every list fetch is persisted to news_articles (deduped by article_uuid +
  * symbol) so the mobile app can display the headline feed; the news:fetch
@@ -31,27 +33,10 @@ use Illuminate\Support\Facades\Log;
  */
 class NewsService
 {
-    /** @var array<int, string> */
-    protected const POSITIVE = [
-        'surge', 'surges', 'soar', 'soars', 'rall', 'jump', 'jumps', 'gain', 'gains',
-        'rise', 'rises', 'record high', 'all-time high', 'beats estimates', 'beat estimates',
-        'upgrade', 'upgraded', 'outperform', 'profit', 'profits', 'recovery', 'growth',
-        'bull', 'positive', 'strong', 'boost', 'wins', 'launch', 'partnership', 'expansion',
-        'dividend', 'order win', 'approval',
-    ];
-
-    /** @var array<int, string> */
-    protected const NEGATIVE = [
-        'fall', 'falls', 'drop', 'drops', 'plunge', 'plunges', 'plummet', 'crash', 'rout',
-        'slump', 'slips', 'slide', 'slides', 'selloff', 'sell-off', 'downgrade', 'downgraded',
-        'loss', 'losses', 'investigation', 'probe', 'lawsuit', 'fraud', 'scandal', 'slashes',
-        'cuts', 'weak', 'bearish', 'negative', 'concern', 'warning', 'bankruptcy', 'layoff',
-        'layoffs', 'penalty', 'fine', 'decline', 'declines', 'warnings', 'deadlock', 'sanction',
-    ];
-
     public function __construct(
         protected NewsProvider $provider,
         protected TradingConfigService $config,
+        protected SentimentAnalyzer $sentiment,
     ) {}
 
     /**
@@ -188,7 +173,7 @@ class NewsService
         $stockId = Stock::where('symbol', $symbol)->value('id');
 
         foreach ($articles as $article) {
-            $polarity = $this->polarity($article['title'] ?? '');
+            $analysis = $this->sentiment->analyze($article['title']);
 
             NewsArticle::updateOrCreate(
                 ['article_uuid' => (string) $article['uuid'], 'symbol' => $symbol],
@@ -196,9 +181,9 @@ class NewsService
                     'stock_id' => $stockId,
                     'title' => (string) $article['title'],
                     'publisher' => (string) $article['publisher'],
-                    'published_at' => $this->parsePublishedAt($article['published_at'] ?? ''),
-                    'sentiment' => $this->sentimentLabel($polarity),
-                    'sentiment_score' => 50 + $polarity * 40,
+                    'published_at' => $this->parsePublishedAt($article['published_at']),
+                    'sentiment' => $analysis['label'],
+                    'sentiment_score' => round($analysis['score'], 2),
                 ],
             );
         }
@@ -252,6 +237,8 @@ class NewsService
     /**
      * Read the persisted headline feed for the mobile app, newest first.
      * Optionally narrowed to a single ticker via ?symbol=.
+     *
+     * @return LengthAwarePaginator<int, NewsArticle>
      */
     public function recentNews(?string $symbol = null, int $perPage = 20): LengthAwarePaginator
     {
@@ -271,7 +258,9 @@ class NewsService
     }
 
     /**
-     * Keyword sentiment over article titles.
+     * Aggregate sentiment over a set of headlines. Each article is scored by
+     * the active SentimentAnalyzer; the document score is the average of the
+     * per-article scores (0..100), with counts bucketed by polarity.
      *
      * @param  array<int, array{uuid: string, title: string, published_at: string, publisher: string}>  $articles
      * @return array{
@@ -289,32 +278,28 @@ class NewsService
         }
 
         $positive = $negative = $neutral = 0;
-        $net = 0;
+        $total = 0.0;
         $sample = null;
 
         foreach ($articles as $article) {
-            $polarity = $this->polarity($article['title'] ?? '');
+            $analysis = $this->sentiment->analyze($article['title']);
+            $total += $analysis['score'];
 
-            if ($polarity > 0) {
+            if ($analysis['polarity'] > 0) {
                 $positive++;
-            } elseif ($polarity < 0) {
+            } elseif ($analysis['polarity'] < 0) {
                 $negative++;
             } else {
                 $neutral++;
             }
 
-            $net += $polarity;
-
-            if ($sample === null && ($article['title'] ?? '') !== '') {
+            if ($sample === null && $article['title'] !== '') {
                 $sample = $article['title'];
             }
         }
 
-        $direction = $net / count($articles);
-
         return [
-            // 50 base, ±40 depending on the average title polarity.
-            'score' => round(max(0, min(100, 50 + $direction * 40)), 2),
+            'score' => round($total / count($articles), 2),
             'positive' => $positive,
             'negative' => $negative,
             'neutral' => $neutral,
@@ -359,33 +344,5 @@ class NewsService
     protected function parsePublishedAt(string $value): ?string
     {
         return $value !== '' ? $value : null;
-    }
-
-    protected function sentimentLabel(int $polarity): string
-    {
-        return $polarity > 0 ? 'positive' : ($polarity < 0 ? 'negative' : 'neutral');
-    }
-
-    /**
-     * Return +1 (positive), -1 (negative) or 0 (neutral) for a headline.
-     */
-    protected function polarity(string $title): int
-    {
-        $text = mb_strtolower($title);
-        $pos = $neg = 0;
-
-        foreach (self::POSITIVE as $word) {
-            if (str_contains($text, $word)) {
-                $pos++;
-            }
-        }
-
-        foreach (self::NEGATIVE as $word) {
-            if (str_contains($text, $word)) {
-                $neg++;
-            }
-        }
-
-        return $pos <=> $neg;
     }
 }

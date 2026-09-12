@@ -5,8 +5,8 @@ namespace App\Services;
 /**
  * Computes buy quantity for a signal under the user's capital rules:
  *  - start capital (risk.capital)
- *  - max 20% per stock (position.max_pct_per_stock)
- *  - 60–70% max total exposure (position.max_exposure_pct)
+ *  - max 20% per stock (position.max_pct_per_stock, stored as a percentage)
+ *  - 60–70% max total exposure (position.max_exposure_pct, stored as a percentage)
  *  - risk-based sizing: risk ₹200/trade, risk per share ₹10 → 20 shares
  *
  * Returns the ceiling-bounded quantity that satisfies allocation AND per-stock
@@ -53,11 +53,11 @@ class PositionSizer
         $capital = $this->config->float('risk.capital', self::DEFAULT_CAPITAL);
 
         // 1) Per-stock concentration: 20% of capital.
-        $perStockPct = $this->config->float('position.max_pct_per_stock', self::MAX_PCT_PER_STOCK);
+        $perStockPct = $this->config->float('position.max_pct_per_stock', self::MAX_PCT_PER_STOCK) / 100;
         $slotCap = $capital * $perStockPct;
 
         // 2) Remaining exposure headroom given currently-used capital.
-        $maxExposurePct = $this->config->float('position.max_exposure_pct', self::MAX_EXPOSURE_PCT);
+        $maxExposurePct = $this->config->float('position.max_exposure_pct', self::MAX_EXPOSURE_PCT) / 100;
         $exposureBudget = $capital * $maxExposurePct;
         $freeBudget = max(0, $exposureBudget - $usedCapital);
 

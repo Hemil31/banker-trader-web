@@ -14,6 +14,8 @@ use App\Models\TradingSignal;
  *  - duplicate-order protection (no order twice for the same signal)
  *  - no-martingale rule (no adding to losers)
  *
+ * Once the daily profit target is reached no new entries are opened, locking
+ * in the day's gains; open positions keep being monitored and exited.
  * Every decision is surfaced so the execution engine can halt trading.
  */
 class RiskManager
@@ -37,10 +39,15 @@ class RiskManager
         $maxTrades = $this->config->int('risk.max_trades_per_day', 5);
 
         $haltedLoss = -$metrics['realized'] > $lossCap;
+        $haltedTarget = $target > 0 && $metrics['realized'] >= $target;
         $haltedTrades = $metrics['trades_count'] >= $maxTrades;
 
         if ($haltedLoss) {
             return ['halted' => true, 'reason' => 'daily_loss_cap', 'metrics' => $metrics];
+        }
+
+        if ($haltedTarget) {
+            return ['halted' => true, 'reason' => 'daily_target_reached', 'metrics' => $metrics];
         }
 
         if ($haltedTrades) {

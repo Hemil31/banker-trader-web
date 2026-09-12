@@ -50,3 +50,29 @@
 **Notes:**
 - PHPStan needs `--memory-limit=1G` on this box (128M default crashes the parallel worker).
 - Laravel `nullableUuidMorphs()` already creates the composite index itself — do not add a manual `index(['subject_type','subject_id'])` on top (MySQL "Duplicate key name").
+## 2026-09-12 — Per-account automation engine (news → AI-ready sentiment → auto trade)
+**Status:** completed
+
+**Changes:**
+- `trading_accounts.settings` json column (migration `2026_09_12_100001_...`). `TradingAccount` gains `isAutomationEnabled()` (master+strategy must both be true), `effectiveCapital()`, `configOverrides()` (keys: `risk.capital`, `risk.daily_target` (pct), `risk.daily_loss_cap` (pct), plus passthrough of `position.*`, `risk.max_trades_per_day`, `entry.*`, `exit.*`).
+- `TradingConfigService`: new `useOverrides()`/`clearOverrides()` add an override layer; resolution order = overrides → snapshot → DB. Registered `scoped()` in AppServiceProvider so one account's overrides reach every trading service in a request cycle.
+- Sentiment is now pluggable: `app/Contracts/Analysis/SentimentAnalyzer.php` + `KeywordSentimentAnalyzer` (moved wordlists from NewsService). `config/news.php` `news.sentiment_driver` (env `NEWS_SENTIMENT_DRIVER`). Swap an LLM later by binding a new implementation.
+- `RiskManager::evaluateHalt()` adds `daily_target_reached` (blocks NEW entries once the day's realized profit ≥ daily target; open positions still exit normally).
+- `PaperTradingService::runForAccount()` extracted so automation reuses the ranked-scan + sizing + execution path.
+- `AutoTradingService`: loops enabled accounts; live accounts with no connected broker are skipped; per-account overrides applied; SystemEvent log + per-account result array.
+- `trader:auto` command (`--account=`, `--symbol=`). Scheduler in `bootstrap/app.php`: `trader:auto` every 15 min, weekdays 09:15–15:25 IST; `news:fetch` hourly; both `withoutOverlapping()`.
+- **Bug fix:** `PositionSizer` treated `position.max_pct_per_stock` / `max_exposure_pct` as fractions though they are stored/labeled as percentages (20/70 in DB). Now divided by 100. Was latent because riskQty capped below priceQty at default capital.
+- `TradingAccountFactory`: `automated()` + `withSettings()` states. 6 new feature tests. Full suite 127/127 green; PHPStan clean; affected files Pint-clean.
+
+**Verification:** `vendor/bin/phpunit` → 127 passed/502 assertions. `phpstan analyse <touched files> --memory-limit=1G` → 0 errors. `php artisan schedule:list` shows trader:auto/news:fetch windows. `php artisan trader:auto` smoke test returns the seeded paper account with 0 signals (expected — no tradable setup today).
+
+**Pending:**
+- Deploy host cron: `* * * * * php artisan schedule:run` (scheduler itself is wired in-app).
+- Bag of words is English/equity NSE; review NIFTY/technical-only headlines (no keyword override data yet).
+- Per-user UI to toggle automation + set capital/target (API + settings column exist; admin/web screen is follow-up).
+- Consider a dedicated queue (horizon) once volume grows; 15-min news chunks also count vs FreeNewsApi daily quota.
+
+**Notes:**
+- `brokers.credentials` json-column fallback in `BrokerOAuthService` is an unrelated pre-existing uncommitted change (present before this session) — do not revert; commit separately.
+- Repo-wide Pint/PHPStan already drift on OLD files (`NewsController`, `FreeNewsApiProvider`, migrations, `NewsSentimentTest`, `recentNews()` generics fixed) — pre-existing; not caused by this session.
+- PHPStan needs `--memory-limit=1G` on this box.

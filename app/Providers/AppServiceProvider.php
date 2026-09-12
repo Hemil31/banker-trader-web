@@ -2,12 +2,15 @@
 
 namespace App\Providers;
 
+use App\Contracts\Analysis\SentimentAnalyzer;
 use App\Contracts\MarketData\MarketDataProvider;
 use App\Contracts\MarketData\YahooFinanceProvider;
 use App\Contracts\News\FreeNewsApiProvider;
 use App\Contracts\News\NewsProvider;
 use App\Contracts\Repositories\AuthRepositoryInterface;
 use App\Repositories\AuthRepository;
+use App\Services\Analysis\KeywordSentimentAnalyzer;
+use App\Services\TradingConfigService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +28,17 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(AuthRepositoryInterface::class, AuthRepository::class);
         $this->app->bind(MarketDataProvider::class, YahooFinanceProvider::class);
         $this->app->bind(NewsProvider::class, FreeNewsApiProvider::class);
+
+        // The strategy config is state shared across the whole engine (signal
+        // scanner, sizer, risk, execution). Scoping it means the automation
+        // loop can apply per-account overrides once and every downstream
+        // service sees them, without leaking across HTTP requests.
+        $this->app->scoped(TradingConfigService::class);
+
+        // Pluggable news sentiment. Default is the free keyword heuristic; an
+        // LLM provider can later implement SentimentAnalyzer and be selected
+        // here via config('news.sentiment_driver') without touching engine code.
+        $this->app->bind(SentimentAnalyzer::class, fn (): SentimentAnalyzer => new KeywordSentimentAnalyzer);
 
         Passport::enablePasswordGrant();
     }

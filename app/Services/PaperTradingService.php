@@ -69,7 +69,7 @@ class PaperTradingService
     }
 
     /**
-     * Run one paper session:
+     * Run one paper session against the shared paper account:
      *   1. scan watchlist → persist candidate signals
      *   2. enter positions for new candidates (risk-approved)
      *   3. monitor existing open positions against latest prices
@@ -82,6 +82,18 @@ class PaperTradingService
     {
         $account = $this->paperAccount($user);
 
+        return $this->runForAccount($account, $stocks, $asOf);
+    }
+
+    /**
+     * Run the paper session for any single account (used by the automation
+     * loop to process every enrolled account).
+     *
+     * @param  Collection<int, Stock>  $stocks
+     * @return array{account: TradingAccount, signals_generated: int, market_ok: bool, entered: int, blocked: int, monitored: int, exits: int, portfolio: array<string, float>}
+     */
+    public function runForAccount(TradingAccount $account, Collection $stocks, ?string $asOf = null): array
+    {
         $scan = $this->signals->run($stocks, $asOf);
 
         $entered = 0;

@@ -14,10 +14,14 @@ class TradingConfigService
     public function __construct(protected ?string $overridesKey = null)
     {
         $this->snapshot = null;
+        $this->overrides = [];
     }
 
     /** @var array<string, mixed>|null */
     protected ?array $snapshot;
+
+    /** @var array<string, mixed> */
+    protected array $overrides;
 
     /**
      * Serve reads from an in-memory snapshot instead of the DB. Values are
@@ -32,8 +36,35 @@ class TradingConfigService
         return $this;
     }
 
+    /**
+     * Apply per-account overrides over the global config. Takes precedence
+     * over the snapshot and the DB. Used by the automation loop to scale
+     * capital / daily targets per user; clear before processing the next
+     * account.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    public function useOverrides(array $overrides): self
+    {
+        $this->overrides = $overrides;
+
+        return $this;
+    }
+
+    /**
+     * Drop the active overrides back to the global config.
+     */
+    public function clearOverrides(): void
+    {
+        $this->overrides = [];
+    }
+
     public function get(string $key, mixed $default = null): mixed
     {
+        if (array_key_exists($key, $this->overrides)) {
+            return $this->overrides[$key];
+        }
+
         if ($this->snapshot !== null) {
             return array_key_exists($key, $this->snapshot) ? $this->snapshot[$key] : $default;
         }
@@ -75,6 +106,10 @@ class TradingConfigService
 
         if ($this->snapshot !== null) {
             $this->snapshot[$key] = $value;
+        }
+
+        if (array_key_exists($key, $this->overrides)) {
+            $this->overrides[$key] = $value;
         }
 
         SystemEvent::create([

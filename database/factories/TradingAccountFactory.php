@@ -28,7 +28,26 @@ class TradingAccountFactory extends Factory
             'started_at' => null,
             'broker_id' => null,
             'credentials' => null,
+            'settings' => null,
         ];
+    }
+
+    /**
+     * Enroll the account in the automated trading loop.
+     */
+    public function automated(): static
+    {
+        return $this->state(fn (): array => ['master_enabled' => true]);
+    }
+
+    /**
+     * Per-account strategy overrides (capital / daily profit % / per-key).
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public function withSettings(array $settings): static
+    {
+        return $this->state(fn (): array => ['settings' => $settings]);
     }
 
     /**

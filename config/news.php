@@ -28,4 +28,18 @@ return [
 
     'timeout' => env('NEWS_TIMEOUT', 15),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Sentiment driver
+    |--------------------------------------------------------------------------
+    |
+    | Which SentimentAnalyzer to use for headline sentiment. 'keyword' ships
+    | free (no paid NLP); swap to 'ai' once an LLM provider implements
+    | App\Contracts\Analysis\SentimentAnalyzer. Toggled per environment, never
+    | per-strategy.
+    |
+    */
+
+    'sentiment_driver' => env('NEWS_SENTIMENT_DRIVER', 'keyword'),
+
 ];

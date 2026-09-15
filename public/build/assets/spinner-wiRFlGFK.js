@@ -1,0 +1,35 @@
+import { a as e, i as t, t as n } from './utils-D7vFs7oC.js';
+import { r } from './wayfinder-DPJui1gF.js';
+var i = r(`LoaderCircle`, [
+        [`path`, { d: `M21 12a9 9 0 1 1-6.219-8.56`, key: `13zald` }],
+    ]),
+    a = e(),
+    o = t();
+function s(e) {
+    let t = (0, a.c)(8),
+        r,
+        s;
+    t[0] === e
+        ? ((r = t[1]), (s = t[2]))
+        : (({ className: r, ...s } = e), (t[0] = e), (t[1] = r), (t[2] = s));
+    let c;
+    t[3] === r
+        ? (c = t[4])
+        : ((c = n(`size-4 animate-spin`, r)), (t[3] = r), (t[4] = c));
+    let l;
+    return (
+        t[5] !== s || t[6] !== c
+            ? ((l = (0, o.jsx)(i, {
+                  role: `status`,
+                  'aria-label': `Loading`,
+                  className: c,
+                  ...s,
+              })),
+              (t[5] = s),
+              (t[6] = c),
+              (t[7] = l))
+            : (l = t[7]),
+        l
+    );
+}
+export { s as t };

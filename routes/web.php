@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\ZernioController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -20,4 +21,12 @@ Route::middleware(['auth', 'is_admin'])->group(function () {
     Route::get('admin', [AdminController::class, 'index'])->name('admin.dashboard');
     Route::get('admin/settings', [AdminController::class, 'settings'])->name('admin.settings');
     Route::post('admin/settings', [AdminController::class, 'updateSetting'])->name('admin.settings.update');
+
+    Route::prefix('admin/zernio')->name('admin.zernio.')->group(function () {
+        Route::get('accounts', [ZernioController::class, 'accounts'])->name('accounts');
+        Route::post('accounts/sync', [ZernioController::class, 'syncAccounts'])->name('accounts.sync');
+        Route::get('posts', [ZernioController::class, 'posts'])->name('posts');
+        Route::post('posts', [ZernioController::class, 'storePost'])->name('posts.store');
+        Route::post('media/presign', [ZernioController::class, 'presignMedia'])->name('media.presign');
+    });
 });

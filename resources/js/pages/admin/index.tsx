@@ -1,5 +1,11 @@
 import { Head } from '@inertiajs/react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 
 type UserTotals = {
     accounts: number;
@@ -33,7 +39,11 @@ type Props = {
 };
 
 function inr(value: number): string {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value ?? 0);
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+    }).format(value ?? 0);
 }
 
 export default function AdminIndex({ users, summary }: Props) {
@@ -44,49 +54,104 @@ export default function AdminIndex({ users, summary }: Props) {
             <div className="flex flex-1 flex-col gap-6 p-4">
                 <div>
                     <h1 className="text-xl font-semibold">Admin console</h1>
-                    <p className="text-sm text-muted-foreground">Company overview · profit/loss per user</p>
+                    <p className="text-muted-foreground text-sm">
+                        Company overview · profit/loss per user
+                    </p>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <SummaryCard label="Users" value={String(summary.users)} />
-                    <SummaryCard label="Net realized P&L" value={inr(summary.total_realized_pnl_net)} />
-                    <SummaryCard label="Net unrealized P&L" value={inr(summary.total_unrealized_pnl_net)} />
-                    <SummaryCard label="Orders" value={String(summary.total_orders)} />
-                    <SummaryCard label="Signals" value={String(summary.total_signals)} />
-                    <SummaryCard label="Open positions" value={String(summary.total_open_positions)} />
+                    <SummaryCard
+                        label="Net realized P&L"
+                        value={inr(summary.total_realized_pnl_net)}
+                    />
+                    <SummaryCard
+                        label="Net unrealized P&L"
+                        value={inr(summary.total_unrealized_pnl_net)}
+                    />
+                    <SummaryCard
+                        label="Orders"
+                        value={String(summary.total_orders)}
+                    />
+                    <SummaryCard
+                        label="Signals"
+                        value={String(summary.total_signals)}
+                    />
+                    <SummaryCard
+                        label="Open positions"
+                        value={String(summary.total_open_positions)}
+                    />
                 </div>
 
                 <Card>
                     <CardHeader>
                         <CardTitle>Users</CardTitle>
-                        <CardDescription>Per-account realized/unrealized profit and trading activity</CardDescription>
+                        <CardDescription>
+                            Per-account realized/unrealized profit and trading
+                            activity
+                        </CardDescription>
                     </CardHeader>
                     <CardContent className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-muted-foreground">
-                                    <th className="pb-2 pr-4 font-medium">User</th>
-                                    <th className="pb-2 pr-4 font-medium">Accounts</th>
-                                    <th className="pb-2 pr-4 font-medium">Realized P&L</th>
-                                    <th className="pb-2 pr-4 font-medium">Unrealized P&L</th>
-                                    <th className="pb-2 pr-4 font-medium">Orders</th>
-                                    <th className="pb-2 pr-4 font-medium">Signals</th>
-                                    <th className="pb-2 font-medium">Open positions</th>
+                                <tr className="text-muted-foreground border-b text-left">
+                                    <th className="pr-4 pb-2 font-medium">
+                                        User
+                                    </th>
+                                    <th className="pr-4 pb-2 font-medium">
+                                        Accounts
+                                    </th>
+                                    <th className="pr-4 pb-2 font-medium">
+                                        Realized P&L
+                                    </th>
+                                    <th className="pr-4 pb-2 font-medium">
+                                        Unrealized P&L
+                                    </th>
+                                    <th className="pr-4 pb-2 font-medium">
+                                        Orders
+                                    </th>
+                                    <th className="pr-4 pb-2 font-medium">
+                                        Signals
+                                    </th>
+                                    <th className="pb-2 font-medium">
+                                        Open positions
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {users.map((user) => (
-                                    <tr key={user.id} className="border-b last:border-0">
+                                    <tr
+                                        key={user.id}
+                                        className="border-b last:border-0"
+                                    >
                                         <td className="py-3 pr-4">
-                                            <p className="font-medium">{user.name}</p>
-                                            <p className="text-xs text-muted-foreground">{user.email}</p>
+                                            <p className="font-medium">
+                                                {user.name}
+                                            </p>
+                                            <p className="text-muted-foreground text-xs">
+                                                {user.email}
+                                            </p>
                                         </td>
-                                        <td className="py-3 pr-4">{user.totals.accounts}</td>
-                                        <td className="py-3 pr-4 tabular-nums">{inr(user.totals.realized_pnl_net)}</td>
-                                        <td className="py-3 pr-4 tabular-nums">{inr(user.totals.unrealized_pnl_net)}</td>
-                                        <td className="py-3 pr-4">{user.totals.orders_count}</td>
-                                        <td className="py-3 pr-4">{user.totals.signals_count}</td>
-                                        <td className="py-3">{user.totals.open_positions}</td>
+                                        <td className="py-3 pr-4">
+                                            {user.totals.accounts}
+                                        </td>
+                                        <td className="py-3 pr-4 tabular-nums">
+                                            {inr(user.totals.realized_pnl_net)}
+                                        </td>
+                                        <td className="py-3 pr-4 tabular-nums">
+                                            {inr(
+                                                user.totals.unrealized_pnl_net,
+                                            )}
+                                        </td>
+                                        <td className="py-3 pr-4">
+                                            {user.totals.orders_count}
+                                        </td>
+                                        <td className="py-3 pr-4">
+                                            {user.totals.signals_count}
+                                        </td>
+                                        <td className="py-3">
+                                            {user.totals.open_positions}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -102,7 +167,9 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+                <CardTitle className="text-muted-foreground text-sm font-medium">
+                    {label}
+                </CardTitle>
             </CardHeader>
             <CardContent>
                 <p className="text-2xl font-semibold tabular-nums">{value}</p>

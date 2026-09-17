@@ -281,27 +281,28 @@ function L({ className: e, variant: t, size: n, asChild: r = !1, ...a }) {
         ...a,
     });
 }
-var R = (e) => (e === !0 ? `1` : e === !1 ? `0` : e.toString()),
-    z = (e, t, n) => {
+var R = () => ({}),
+    z = (e) => (e === !0 ? `1` : e === !1 ? `0` : e.toString()),
+    B = (e, t, n) => {
         Object.entries(e).forEach(([e, r]) => {
             if (r === void 0) return;
             let i = `${t}[${e}]`;
             Array.isArray(r)
-                ? r.forEach((e) => n.append(`${i}[]`, R(e)))
+                ? r.forEach((e) => n.append(`${i}[]`, z(e)))
                 : typeof r == `object` && r
-                  ? z(r, i, n)
+                  ? B(r, i, n)
                   : [`string`, `number`, `boolean`].includes(typeof r) &&
-                    n.set(i, R(r));
+                    n.set(i, z(r));
         });
     },
-    B = (e, t) => {
+    V = (e, t) => {
         let n = new Set();
         (e.forEach((e, r) => {
             (r === t || r.startsWith(`${t}[`)) && n.add(r);
         }),
             n.forEach((t) => e.delete(t)));
     },
-    V = (e) => {
+    H = (e) => {
         if (!e || (!e.query && !e.mergeQuery)) return ``;
         let t = e.query ?? e.mergeQuery,
             n = e.mergeQuery !== void 0,
@@ -310,17 +311,33 @@ var R = (e) => (e === !0 ? `1` : e === !1 ? `0` : e.toString()),
             );
         for (let e in t) {
             let i = t[e];
-            (n && B(r, e),
+            (n && V(r, e),
                 i != null &&
                     (Array.isArray(i)
                         ? i.forEach((t) => {
                               r.append(`${e}[]`, t.toString());
                           })
                         : typeof i == `object`
-                          ? z(i, e, r)
-                          : r.set(e, R(i))));
+                          ? B(i, e, r)
+                          : r.set(e, z(i))));
         }
         let i = r.toString();
         return i.length > 0 ? `?${i}` : ``;
+    },
+    U = (e) => {
+        let t = { ...(e ?? {}) },
+            n = R();
+        for (let e in n) t[e] === void 0 && n[e] !== void 0 && (t[e] = n[e]);
+        return t;
     };
-export { m as a, u as c, k as i, L as n, p as o, P as r, g as s, V as t };
+export {
+    k as a,
+    g as c,
+    P as i,
+    u as l,
+    H as n,
+    m as o,
+    L as r,
+    p as s,
+    U as t,
+};

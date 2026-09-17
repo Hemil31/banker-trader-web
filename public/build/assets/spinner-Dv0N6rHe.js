@@ -1,5 +1,5 @@
 import { a as e, i as t, t as n } from './utils-D7vFs7oC.js';
-import { r } from './wayfinder-DPJui1gF.js';
+import { i as r } from './wayfinder-D1vVM27W.js';
 var i = r(`LoaderCircle`, [
         [`path`, { d: `M21 12a9 9 0 1 1-6.219-8.56`, key: `13zald` }],
     ]),

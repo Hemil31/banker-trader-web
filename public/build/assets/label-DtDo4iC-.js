@@ -1,6 +1,6 @@
 import { n as e } from './rolldown-runtime-CbXtAM7H.js';
 import { a as t, f as n, i as r, t as i } from './utils-D7vFs7oC.js';
-import { l as a } from './app-agYMoroD.js';
+import { u as a } from './app-CYkRgsN7.js';
 var o = r();
 function s({ message: e, className: t = ``, ...n }) {
     return e

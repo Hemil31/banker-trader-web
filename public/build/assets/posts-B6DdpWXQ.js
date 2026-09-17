@@ -1,15 +1,15 @@
 import { n as e } from './rolldown-runtime-CbXtAM7H.js';
 import { a as t, f as n, i as r, o as i, s as a } from './utils-D7vFs7oC.js';
-import { n as o } from './wayfinder-DPJui1gF.js';
-import { t as s } from './checkbox-oCbsstMb.js';
-import { t as c } from './spinner-wiRFlGFK.js';
-import { a as l, n as u, t as d } from './app-agYMoroD.js';
-import { a as f, i as p, n as m, r as h, t as g } from './card-y6orrvbC.js';
-import { n as _, t as v } from './label-B30W1_zK.js';
-var y = t(),
-    b = e(n(), 1),
-    x = r(),
-    S = [
+import { r as o } from './wayfinder-D1vVM27W.js';
+import { t as s } from './checkbox-B5IL5Axg.js';
+import { t as c } from './spinner-Dv0N6rHe.js';
+import { n as l, o as u, r as d, t as f } from './app-CYkRgsN7.js';
+import { a as p, i as m, n as h, r as g, t as _ } from './card-y6orrvbC.js';
+import { n as v, t as y } from './label-DtDo4iC-.js';
+var b = t(),
+    x = e(n(), 1),
+    S = r(),
+    C = [
         `Asia/Kolkata`,
         `UTC`,
         `Asia/Dubai`,
@@ -20,11 +20,11 @@ var y = t(),
         `America/Los_Angeles`,
         `Australia/Sydney`,
     ];
-function C() {
+function w() {
     let e = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
     return e ? decodeURIComponent(e[1]) : ``;
 }
-function w(e, t) {
+function T(e, t) {
     return t.includes(`image/gif`)
         ? `gif`
         : t.startsWith(`image/`)
@@ -35,7 +35,7 @@ function w(e, t) {
               ? `document`
               : null;
 }
-function T(e) {
+function E(e) {
     switch (e.status) {
         case `published`:
             return `bg-green-500/10 text-green-600`;
@@ -47,33 +47,33 @@ function T(e) {
             return `bg-muted text-muted-foreground`;
     }
 }
-function E(e) {
-    let t = (0, y.c)(17),
+function D(e) {
+    let t = (0, b.c)(17),
         { posts: n, accounts: r, timezone: s } = e,
-        T;
+        l;
     t[0] === Symbol.for(`react.memo_cache_sentinel`)
-        ? ((T = []), (t[0] = T))
-        : (T = t[0]);
-    let [E, O] = (0, b.useState)(T),
-        [N, P] = (0, b.useState)(!1),
-        [F, I] = (0, b.useState)(null),
+        ? ((l = []), (t[0] = l))
+        : (l = t[0]);
+    let [E, D] = (0, x.useState)(l),
+        [k, P] = (0, x.useState)(!1),
+        [F, I] = (0, x.useState)(null),
         L;
     t[1] === Symbol.for(`react.memo_cache_sentinel`)
         ? ((L = async (e) => {
               (P(!0), I(null));
               let t = [];
               for (let n of e) {
-                  let e = w(n.name, n.type);
+                  let e = T(n.name, n.type);
                   if (e === null) {
                       I(`Only images, videos, GIFs and PDFs are supported.`);
                       continue;
                   }
-                  let r = await fetch(d().url, {
+                  let r = await fetch(f().url, {
                           method: `POST`,
                           headers: {
                               'Content-Type': `application/json`,
                               Accept: `application/json`,
-                              'X-XSRF-TOKEN': C(),
+                              'X-XSRF-TOKEN': w(),
                               'X-Requested-With': `XMLHttpRequest`,
                           },
                           body: JSON.stringify({
@@ -107,24 +107,24 @@ function E(e) {
                   }
                   t.push({ url: i.public_url, type: e, name: n.name });
               }
-              (O((e) => [...e, ...t]), P(!1));
+              (D((e) => [...e, ...t]), P(!1));
           }),
           (t[1] = L))
         : (L = t[1]);
     let R = L,
         z;
     t[2] === Symbol.for(`react.memo_cache_sentinel`)
-        ? ((z = (0, x.jsx)(a, { title: `Zernio posts` })), (t[2] = z))
+        ? ((z = (0, S.jsx)(a, { title: `Zernio posts` })), (t[2] = z))
         : (z = t[2]);
     let B;
     t[3] === Symbol.for(`react.memo_cache_sentinel`)
-        ? ((B = (0, x.jsxs)(`div`, {
+        ? ((B = (0, S.jsxs)(`div`, {
               children: [
-                  (0, x.jsx)(`h1`, {
+                  (0, S.jsx)(`h1`, {
                       className: `text-xl font-semibold`,
                       children: `Zernio posts`,
                   }),
-                  (0, x.jsx)(`p`, {
+                  (0, S.jsx)(`p`, {
                       className: `text-muted-foreground text-sm`,
                       children: `Compose a post and send it to every selected account.`,
                   }),
@@ -134,40 +134,40 @@ function E(e) {
         : (B = t[3]);
     let V;
     t[4] === Symbol.for(`react.memo_cache_sentinel`)
-        ? ((V = u.form()), (t[4] = V))
+        ? ((V = d.form()), (t[4] = V))
         : (V = t[4]);
     let H;
-    t[5] !== r || t[6] !== E || t[7] !== s || t[8] !== F || t[9] !== N
-        ? ((H = (0, x.jsx)(i, {
+    t[5] !== r || t[6] !== E || t[7] !== s || t[8] !== F || t[9] !== k
+        ? ((H = (0, S.jsx)(i, {
               ...V,
               resetOnSuccess: !0,
               className: `grid gap-6`,
               children: (e) => {
                   let { processing: t, errors: n, recentlySuccessful: i } = e;
-                  return (0, x.jsx)(x.Fragment, {
-                      children: (0, x.jsxs)(g, {
+                  return (0, S.jsx)(S.Fragment, {
+                      children: (0, S.jsxs)(_, {
                           children: [
-                              (0, x.jsxs)(p, {
+                              (0, S.jsxs)(m, {
                                   children: [
-                                      (0, x.jsx)(f, {
+                                      (0, S.jsx)(p, {
                                           children: `Compose post`,
                                       }),
-                                      (0, x.jsx)(h, {
+                                      (0, S.jsx)(g, {
                                           children: `One post, delivered to all selected accounts.`,
                                       }),
                                   ],
                               }),
-                              (0, x.jsxs)(m, {
+                              (0, S.jsxs)(h, {
                                   className: `grid gap-4`,
                                   children: [
-                                      (0, x.jsxs)(`div`, {
+                                      (0, S.jsxs)(`div`, {
                                           className: `grid gap-2`,
                                           children: [
-                                              (0, x.jsx)(v, {
+                                              (0, S.jsx)(y, {
                                                   htmlFor: `content`,
                                                   children: `Content`,
                                               }),
-                                              (0, x.jsx)(`textarea`, {
+                                              (0, S.jsx)(`textarea`, {
                                                   id: `content`,
                                                   name: `content`,
                                                   required: !0,
@@ -176,88 +176,88 @@ function E(e) {
                                                   placeholder: `What would you like to post?`,
                                                   className: `border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50`,
                                               }),
-                                              (0, x.jsx)(_, {
+                                              (0, S.jsx)(v, {
                                                   message: n.content,
                                               }),
                                           ],
                                       }),
-                                      (0, x.jsxs)(`div`, {
+                                      (0, S.jsxs)(`div`, {
                                           className: `grid gap-2`,
                                           children: [
-                                              (0, x.jsx)(v, {
+                                              (0, S.jsx)(y, {
                                                   children: `Accounts`,
                                               }),
                                               r.length === 0
-                                                  ? (0, x.jsx)(`p`, {
+                                                  ? (0, S.jsx)(`p`, {
                                                         className: `text-muted-foreground text-sm`,
                                                         children: `No accounts mirrored yet. Refresh accounts on the accounts page.`,
                                                     })
-                                                  : (0, x.jsx)(`div`, {
+                                                  : (0, S.jsx)(`div`, {
                                                         className: `grid gap-2`,
                                                         children: r
-                                                            .filter(M)
-                                                            .map(j),
+                                                            .filter(N)
+                                                            .map(M),
                                                     }),
-                                              (0, x.jsx)(_, {
+                                              (0, S.jsx)(v, {
                                                   message: n.account_ids,
                                               }),
                                           ],
                                       }),
-                                      (0, x.jsxs)(`div`, {
+                                      (0, S.jsxs)(`div`, {
                                           className: `grid gap-4 sm:grid-cols-2`,
                                           children: [
-                                              (0, x.jsxs)(`div`, {
+                                              (0, S.jsxs)(`div`, {
                                                   className: `grid gap-2`,
                                                   children: [
-                                                      (0, x.jsx)(v, {
+                                                      (0, S.jsx)(y, {
                                                           htmlFor: `scheduled_at`,
                                                           children: `Schedule (leave empty to post now)`,
                                                       }),
-                                                      (0, x.jsx)(l, {
+                                                      (0, S.jsx)(u, {
                                                           id: `scheduled_at`,
                                                           name: `scheduled_at`,
                                                           type: `datetime-local`,
                                                       }),
-                                                      (0, x.jsx)(_, {
+                                                      (0, S.jsx)(v, {
                                                           message:
                                                               n.scheduled_at,
                                                       }),
                                                   ],
                                               }),
-                                              (0, x.jsxs)(`div`, {
+                                              (0, S.jsxs)(`div`, {
                                                   className: `grid gap-2`,
                                                   children: [
-                                                      (0, x.jsx)(v, {
+                                                      (0, S.jsx)(y, {
                                                           htmlFor: `timezone`,
                                                           children: `Timezone`,
                                                       }),
-                                                      (0, x.jsx)(`select`, {
+                                                      (0, S.jsx)(`select`, {
                                                           id: `timezone`,
                                                           name: `timezone`,
                                                           defaultValue: s,
                                                           className: `border-input dark:bg-input/30 dark:hover:bg-input/50 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none`,
-                                                          children: S.map(A),
+                                                          children: C.map(j),
                                                       }),
-                                                      (0, x.jsx)(_, {
+                                                      (0, S.jsx)(v, {
                                                           message: n.timezone,
                                                       }),
                                                   ],
                                               }),
                                           ],
                                       }),
-                                      (0, x.jsxs)(`div`, {
+                                      (0, S.jsxs)(`div`, {
                                           className: `grid gap-2`,
                                           children: [
-                                              (0, x.jsx)(v, {
+                                              (0, S.jsx)(y, {
                                                   htmlFor: `media`,
                                                   children: `Media`,
                                               }),
-                                              (0, x.jsx)(l, {
+                                              (0, S.jsx)(u, {
                                                   id: `media`,
                                                   type: `file`,
                                                   accept: `image/*,video/*,application/pdf,.mp4,.mov,.webm`,
                                                   multiple: !0,
-                                                  disabled: N,
+                                                  disabled: k,
                                                   onChange: (e) =>
                                                       void R(
                                                           Array.from(
@@ -266,36 +266,36 @@ function E(e) {
                                                           ),
                                                       ),
                                               }),
-                                              N &&
-                                                  (0, x.jsxs)(`p`, {
+                                              k &&
+                                                  (0, S.jsxs)(`p`, {
                                                       className: `text-muted-foreground flex items-center gap-2 text-sm`,
                                                       children: [
-                                                          (0, x.jsx)(c, {}),
+                                                          (0, S.jsx)(c, {}),
                                                           ` Uploading…`,
                                                       ],
                                                   }),
                                               F &&
-                                                  (0, x.jsx)(_, { message: F }),
-                                              E.map(k),
-                                              (0, x.jsx)(_, {
+                                                  (0, S.jsx)(v, { message: F }),
+                                              E.map(A),
+                                              (0, S.jsx)(v, {
                                                   message: n.media,
                                               }),
                                           ],
                                       }),
-                                      (0, x.jsxs)(`div`, {
+                                      (0, S.jsxs)(`div`, {
                                           className: `flex items-center gap-3`,
                                           children: [
-                                              (0, x.jsxs)(o, {
+                                              (0, S.jsxs)(o, {
                                                   type: `submit`,
-                                                  disabled: t || N,
+                                                  disabled: t || k,
                                                   'data-test': `create-post`,
                                                   children: [
-                                                      t && (0, x.jsx)(c, {}),
+                                                      t && (0, S.jsx)(c, {}),
                                                       `Send post`,
                                                   ],
                                               }),
                                               i &&
-                                                  (0, x.jsx)(`p`, {
+                                                  (0, S.jsx)(`p`, {
                                                       className: `text-sm text-green-600`,
                                                       children: `Sent.`,
                                                   }),
@@ -312,15 +312,15 @@ function E(e) {
           (t[6] = E),
           (t[7] = s),
           (t[8] = F),
-          (t[9] = N),
+          (t[9] = k),
           (t[10] = H))
         : (H = t[10]);
     let U;
     t[11] === Symbol.for(`react.memo_cache_sentinel`)
-        ? ((U = (0, x.jsxs)(p, {
+        ? ((U = (0, S.jsxs)(m, {
               children: [
-                  (0, x.jsx)(f, { children: `Post history` }),
-                  (0, x.jsx)(h, {
+                  (0, S.jsx)(p, { children: `Post history` }),
+                  (0, S.jsx)(g, {
                       children: `Every post composed from this console.`,
                   }),
               ],
@@ -330,19 +330,19 @@ function E(e) {
     let W;
     t[12] === n
         ? (W = t[13])
-        : ((W = (0, x.jsxs)(g, {
+        : ((W = (0, S.jsxs)(_, {
               children: [
                   U,
-                  (0, x.jsx)(m, {
+                  (0, S.jsx)(h, {
                       children:
                           n.length === 0
-                              ? (0, x.jsx)(`p`, {
+                              ? (0, S.jsx)(`p`, {
                                     className: `text-muted-foreground text-sm`,
                                     children: `No posts sent yet.`,
                                 })
-                              : (0, x.jsx)(`div`, {
+                              : (0, S.jsx)(`div`, {
                                     className: `grid gap-4`,
-                                    children: n.map(D),
+                                    children: n.map(O),
                                 }),
                   }),
               ],
@@ -352,10 +352,10 @@ function E(e) {
     let G;
     return (
         t[14] !== H || t[15] !== W
-            ? ((G = (0, x.jsxs)(x.Fragment, {
+            ? ((G = (0, S.jsxs)(S.Fragment, {
                   children: [
                       z,
-                      (0, x.jsxs)(`div`, {
+                      (0, S.jsxs)(`div`, {
                           className: `flex flex-1 flex-col gap-6 p-4`,
                           children: [B, H, W],
                       }),
@@ -368,20 +368,20 @@ function E(e) {
         G
     );
 }
-function D(e) {
-    return (0, x.jsxs)(
+function O(e) {
+    return (0, S.jsxs)(
         `div`,
         {
             className: `rounded-md border p-4`,
             children: [
-                (0, x.jsxs)(`div`, {
+                (0, S.jsxs)(`div`, {
                     className: `flex flex-wrap items-center gap-2`,
                     children: [
-                        (0, x.jsx)(`span`, {
-                            className: `rounded-full px-2 py-0.5 text-xs ${T(e)}`,
+                        (0, S.jsx)(`span`, {
+                            className: `rounded-full px-2 py-0.5 text-xs ${E(e)}`,
                             children: e.status,
                         }),
-                        (0, x.jsxs)(`span`, {
+                        (0, S.jsxs)(`span`, {
                             className: `text-muted-foreground text-xs`,
                             children: [
                                 e.created_by,
@@ -393,7 +393,7 @@ function D(e) {
                             ],
                         }),
                         e.scheduled_at &&
-                            (0, x.jsxs)(`span`, {
+                            (0, S.jsxs)(`span`, {
                                 className: `text-muted-foreground text-xs`,
                                 children: [
                                     `scheduled for`,
@@ -405,18 +405,39 @@ function D(e) {
                                     `)`,
                                 ],
                             }),
+                        e.zernio_post_id &&
+                            e.status !== `published` &&
+                            e.status !== `scheduled` &&
+                            (0, S.jsx)(i, {
+                                ...l.form(e.id),
+                                className: `ml-auto`,
+                                children: (t) => {
+                                    let { processing: n } = t;
+                                    return (0, S.jsxs)(o, {
+                                        type: `submit`,
+                                        variant: `outline`,
+                                        size: `sm`,
+                                        disabled: n,
+                                        children: [
+                                            (n || e.status === `pending`) &&
+                                                (0, S.jsx)(c, {}),
+                                            `Refresh status`,
+                                        ],
+                                    });
+                                },
+                            }),
                     ],
                 }),
-                (0, x.jsx)(`p`, {
+                (0, S.jsx)(`p`, {
                     className: `mt-2 text-sm whitespace-pre-wrap`,
                     children: e.content,
                 }),
-                (0, x.jsx)(`div`, {
+                (0, S.jsx)(`div`, {
                     className: `mt-2 flex flex-wrap gap-2`,
-                    children: e.accounts.map(O),
+                    children: e.accounts.map(k),
                 }),
                 e.error &&
-                    (0, x.jsx)(`p`, {
+                    (0, S.jsx)(`p`, {
                         className: `text-destructive mt-2 text-xs`,
                         children: e.error,
                     }),
@@ -425,8 +446,8 @@ function D(e) {
         e.id,
     );
 }
-function O(e) {
-    return (0, x.jsxs)(
+function k(e) {
+    return (0, S.jsxs)(
         `a`,
         {
             href: e.platform_post_url ?? void 0,
@@ -438,18 +459,18 @@ function O(e) {
         e.id,
     );
 }
-function k(e, t) {
-    return (0, x.jsxs)(
+function A(e, t) {
+    return (0, S.jsxs)(
         `div`,
         {
             className: `text-muted-foreground text-sm`,
             children: [
-                (0, x.jsx)(`input`, {
+                (0, S.jsx)(`input`, {
                     type: `hidden`,
                     name: `media[${t}][url]`,
                     value: e.url,
                 }),
-                (0, x.jsx)(`input`, {
+                (0, S.jsx)(`input`, {
                     type: `hidden`,
                     name: `media[${t}][type]`,
                     value: e.type,
@@ -460,28 +481,28 @@ function k(e, t) {
         e.url,
     );
 }
-function A(e) {
-    return (0, x.jsx)(`option`, { value: e, children: e }, e);
-}
 function j(e) {
-    return (0, x.jsxs)(
+    return (0, S.jsx)(`option`, { value: e, children: e }, e);
+}
+function M(e) {
+    return (0, S.jsxs)(
         `label`,
         {
             className: `flex items-center gap-3 rounded-md border p-3 text-sm`,
             children: [
-                (0, x.jsx)(s, {
+                (0, S.jsx)(s, {
                     name: `account_ids[]`,
                     value: e.id,
                     defaultChecked: !0,
                 }),
-                (0, x.jsxs)(`div`, {
+                (0, S.jsxs)(`div`, {
                     className: `flex min-w-0 flex-1 items-center gap-2`,
                     children: [
-                        (0, x.jsx)(`span`, {
+                        (0, S.jsx)(`span`, {
                             className: `font-medium`,
                             children: e.name,
                         }),
-                        (0, x.jsx)(`span`, {
+                        (0, S.jsx)(`span`, {
                             className: `text-muted-foreground text-xs uppercase`,
                             children: e.platform,
                         }),
@@ -492,7 +513,7 @@ function j(e) {
         e.id,
     );
 }
-function M(e) {
+function N(e) {
     return e.is_active;
 }
-export { E as default };
+export { D as default };

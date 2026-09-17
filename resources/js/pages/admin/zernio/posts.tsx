@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { presign } from '@/routes/admin/zernio/media';
-import { store } from '@/routes/admin/zernio/posts';
+import { refresh, store } from '@/routes/admin/zernio/posts';
 
 type Account = {
     id: string;
@@ -409,6 +409,34 @@ export default function ZernioPosts({ posts, accounts, timezone }: Props) {
                                                     ({post.timezone})
                                                 </span>
                                             )}
+                                            {post.zernio_post_id &&
+                                                post.status !== 'published' &&
+                                                post.status !== 'scheduled' && (
+                                                    <Form
+                                                        {...refresh.form(
+                                                            post.id,
+                                                        )}
+                                                        className="ml-auto"
+                                                    >
+                                                        {({ processing }) => (
+                                                            <Button
+                                                                type="submit"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={
+                                                                    processing
+                                                                }
+                                                            >
+                                                                {(processing ||
+                                                                    post.status ===
+                                                                        'pending') && (
+                                                                    <Spinner />
+                                                                )}
+                                                                Refresh status
+                                                            </Button>
+                                                        )}
+                                                    </Form>
+                                                )}
                                         </div>
                                         <p className="mt-2 text-sm whitespace-pre-wrap">
                                             {post.content}

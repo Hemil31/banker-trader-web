@@ -1186,6 +1186,9 @@
     .overflow-y-auto {
         overflow-y: auto;
     }
+    .rounded {
+        border-radius: 0.25rem;
+    }
     .rounded-\[2px\] {
         border-radius: 2px;
     }
@@ -1909,6 +1912,7 @@
             var(--tw-ring-offset-shadow), var(--tw-ring-shadow),
             var(--tw-shadow);
     }
+    .ring,
     .ring-1 {
         --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0
             calc(1px + var(--tw-ring-offset-width))
@@ -1987,6 +1991,24 @@
             drop-shadow(0 1px 1px var(--tw-drop-shadow-color, #0000000f));
         --tw-drop-shadow: drop-shadow(0 1px 2px #0000001a)
             drop-shadow(0 1px 1px #0000000f);
+        filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,)
+            var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,)
+            var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+    }
+    .grayscale {
+        --tw-grayscale: grayscale(100%);
+        filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,)
+            var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,)
+            var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+    }
+    .invert {
+        --tw-invert: invert(100%);
+        filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,)
+            var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,)
+            var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+    }
+    .sepia {
+        --tw-sepia: sepia(100%);
         filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,)
             var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,)
             var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);

@@ -171,6 +171,37 @@ class ZernioService
     }
 
     /**
+     * Re-pull the live status of a post from Zernio and persist any changes.
+     * Zernio publishes asynchronously, so the status can move from
+     * processing → publishing → published (or failed) after the create call
+     * returns. No-op for posts that never reached Zernio.
+     *
+     * @return array<string, mixed>
+     */
+    public function refreshPostStatus(ZernioPost $post): array
+    {
+        if ($post->zernio_post_id === null) {
+            return $post->toAdminRow();
+        }
+
+        $result = $this->client->getPost($post->zernio_post_id);
+
+        $errors = array_values(array_filter(
+            array_column($result['platforms'] ?? [], 'error_message'),
+            fn (mixed $e): bool => $e !== null,
+        ));
+
+        $post->update([
+            'status' => $this->mapPostStatus($result),
+            'error' => $errors[0] ?? null,
+        ]);
+
+        $this->applyPlatformResults($post, $result['platforms'] ?? []);
+
+        return $post->fresh(['creator', 'accounts'])?->toAdminRow() ?? [];
+    }
+
+    /**
      * Ask Zernio for a presigned upload target for a media file. The caller
      * PUTs the bytes to `upload_url` (browser-side), then reuses `public_url`
      * as the media url when creating the post.

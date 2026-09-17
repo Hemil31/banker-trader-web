@@ -6,6 +6,7 @@ use App\Exceptions\ZernioException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Zernio\CreateZernioPostRequest;
 use App\Http\Requests\Zernio\PresignZernioMediaRequest;
+use App\Models\ZernioPost;
 use App\Services\Zernio\ZernioService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -80,6 +81,25 @@ class ZernioController extends Controller
             'message' => $post['publish_now']
                 ? 'Post sent to Zernio.'
                 : 'Post scheduled with Zernio.',
+        ]);
+    }
+
+    /**
+     * Re-pull the live status of a previously-sent post from Zernio.
+     */
+    public function refreshPostStatus(Request $request, ZernioPost $post): RedirectResponse
+    {
+        try {
+            $refreshed = $this->zernio->refreshPostStatus($post);
+        } catch (ZernioException $e) {
+            throw ValidationException::withMessages(['refresh' => $e->getMessage()]);
+        } catch (Throwable) {
+            throw ValidationException::withMessages(['refresh' => 'Could not refresh the post status.']);
+        }
+
+        return back()->with('toast', [
+            'type' => 'success',
+            'message' => "Post status refreshed: {$refreshed['status']}.",
         ]);
     }
 

@@ -1,15 +1,22 @@
 import { n as e } from './rolldown-runtime-CbXtAM7H.js';
 import { a as t, f as n, i as r, t as i } from './utils-D7vFs7oC.js';
-import { c as a, r as o } from './wayfinder-DPJui1gF.js';
-import { c as s, d as c, l, o as u, s as d, u as f } from './app-agYMoroD.js';
-var p = o(`Check`, [[`path`, { d: `M20 6 9 17l-5-5`, key: `1gmf2c` }]]),
+import { i as a, l as o } from './wayfinder-D1vVM27W.js';
+import {
+    c as s,
+    d as c,
+    f as l,
+    l as u,
+    s as d,
+    u as f,
+} from './app-CYkRgsN7.js';
+var p = a(`Check`, [[`path`, { d: `M20 6 9 17l-5-5`, key: `1gmf2c` }]]),
     m = t(),
     h = e(n(), 1),
     g = r(),
     _ = Object.defineProperty,
     v = (e, t) => _(e, `name`, { value: t, configurable: !0 }),
     y = `Checkbox`,
-    [b, x] = f(y),
+    [b, x] = c(y),
     [S, C] = b(y);
 function w(e) {
     let {
@@ -22,10 +29,10 @@ function w(e) {
             name: s,
             onCheckedChange: c,
             required: l,
-            value: d = `on`,
+            value: u = `on`,
             internal_do_not_use_render: f,
         } = e,
-        [p, m] = u({ prop: n, defaultProp: i ?? !1, onChange: c, caller: y }),
+        [p, m] = d({ prop: n, defaultProp: i ?? !1, onChange: c, caller: y }),
         [_, v] = h.useState(null),
         [b, x] = h.useState(null),
         C = h.useRef(!1),
@@ -39,7 +46,7 @@ function w(e) {
             setControl: v,
             name: s,
             form: o,
-            value: d,
+            value: u,
             hasConsumerStoppedPropagationRef: C,
             userInteractionCount: w,
             onUserInteraction: T,
@@ -56,11 +63,11 @@ var T = `CheckboxTrigger`,
     E = h.forwardRef(
         v(function ({ __scopeCheckbox: e, onKeyDown: t, onClick: n, ...r }, i) {
             let {
-                    control: o,
+                    control: a,
                     value: s,
-                    disabled: u,
-                    checked: d,
-                    required: f,
+                    disabled: c,
+                    checked: u,
+                    required: d,
                     setControl: p,
                     setChecked: m,
                     hasConsumerStoppedPropagationRef: _,
@@ -68,11 +75,11 @@ var T = `CheckboxTrigger`,
                     isFormControl: b,
                     bubbleInput: x,
                 } = C(T, e),
-                S = a(i, p),
-                w = h.useRef(d);
+                S = o(i, p),
+                w = h.useRef(u);
             return (
                 h.useEffect(() => {
-                    let e = o?.form;
+                    let e = a?.form;
                     if (e) {
                         let t = v(() => m(w.current), `reset`);
                         return (
@@ -80,22 +87,22 @@ var T = `CheckboxTrigger`,
                             () => e.removeEventListener(`reset`, t)
                         );
                     }
-                }, [o, m]),
-                (0, g.jsx)(l.button, {
+                }, [a, m]),
+                (0, g.jsx)(f.button, {
                     type: `button`,
                     role: `checkbox`,
-                    'aria-checked': N(d) ? `mixed` : d,
-                    'aria-required': f,
-                    'data-state': P(d),
-                    'data-disabled': u ? `` : void 0,
-                    disabled: u,
+                    'aria-checked': N(u) ? `mixed` : u,
+                    'aria-required': d,
+                    'data-state': P(u),
+                    'data-disabled': c ? `` : void 0,
+                    disabled: c,
                     value: s,
                     ...r,
                     ref: S,
-                    onKeyDown: c(t, (e) => {
+                    onKeyDown: l(t, (e) => {
                         e.key === `Enter` && e.preventDefault();
                     }),
-                    onClick: c(n, (e) => {
+                    onClick: l(n, (e) => {
                         (y(),
                             m((e) => (N(e) ? !0 : !e)),
                             x &&
@@ -146,9 +153,9 @@ var T = `CheckboxTrigger`,
         v(function (e, t) {
             let { __scopeCheckbox: n, forceMount: r, ...i } = e,
                 a = C(O, n);
-            return (0, g.jsx)(d, {
+            return (0, g.jsx)(s, {
                 present: r || N(a.checked) || a.checked === !0,
-                children: (0, g.jsx)(l.span, {
+                children: (0, g.jsx)(f.span, {
                     'data-state': P(a.checked),
                     'data-disabled': a.disabled ? `` : void 0,
                     ...i,
@@ -163,10 +170,10 @@ var T = `CheckboxTrigger`,
         v(function ({ __scopeCheckbox: e, onClick: t, ...n }, r) {
             let {
                     control: i,
-                    hasConsumerStoppedPropagationRef: o,
-                    userInteractionCount: u,
-                    checked: d,
-                    defaultChecked: f,
+                    hasConsumerStoppedPropagationRef: a,
+                    userInteractionCount: s,
+                    checked: c,
+                    defaultChecked: d,
                     required: p,
                     disabled: m,
                     name: _,
@@ -175,35 +182,35 @@ var T = `CheckboxTrigger`,
                     bubbleInput: b,
                     setBubbleInput: x,
                 } = C(A, e),
-                S = a(r, x),
-                w = s(i),
+                S = o(r, x),
+                w = u(i),
                 T = h.useRef(!1),
-                E = h.useRef(d),
-                D = h.useRef(u);
+                E = h.useRef(c),
+                D = h.useRef(s);
             h.useEffect(() => {
                 let e = b;
                 if (!e) return;
                 let t = window.HTMLInputElement.prototype,
                     n = Object.getOwnPropertyDescriptor(t, `checked`).set,
-                    r = u !== D.current;
-                D.current = u;
-                let i = E.current !== d;
-                E.current = d;
-                let a = !(r && o.current);
+                    r = s !== D.current;
+                D.current = s;
+                let i = E.current !== c;
+                E.current = c;
+                let o = !(r && a.current);
                 if (i && n) {
                     T.current = !r;
-                    let t = new Event(`click`, { bubbles: a });
-                    ((e.indeterminate = N(d)),
-                        n.call(e, !N(d) && d),
+                    let t = new Event(`click`, { bubbles: o });
+                    ((e.indeterminate = N(c)),
+                        n.call(e, !N(c) && c),
                         e.dispatchEvent(t),
                         (T.current = !1));
                 }
-            }, [b, d, o, u]);
-            let O = h.useRef(!N(d) && d);
-            return (0, g.jsx)(l.input, {
+            }, [b, c, a, s]);
+            let O = h.useRef(!N(c) && c);
+            return (0, g.jsx)(f.input, {
                 type: `checkbox`,
                 'aria-hidden': !0,
-                defaultChecked: f ?? O.current,
+                defaultChecked: d ?? O.current,
                 required: p,
                 disabled: m,
                 name: _,
@@ -212,7 +219,7 @@ var T = `CheckboxTrigger`,
                 ...n,
                 tabIndex: -1,
                 ref: S,
-                onClick: c(t, (e) => {
+                onClick: l(t, (e) => {
                     T.current && e.stopPropagation();
                 }),
                 style: {

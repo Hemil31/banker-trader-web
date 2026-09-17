@@ -27,6 +27,7 @@ Route::middleware(['auth', 'is_admin'])->group(function () {
         Route::post('accounts/sync', [ZernioController::class, 'syncAccounts'])->name('accounts.sync');
         Route::get('posts', [ZernioController::class, 'posts'])->name('posts');
         Route::post('posts', [ZernioController::class, 'storePost'])->name('posts.store');
+        Route::post('posts/{post}/refresh', [ZernioController::class, 'refreshPostStatus'])->name('posts.refresh');
         Route::post('media/presign', [ZernioController::class, 'presignMedia'])->name('media.presign');
     });
 });

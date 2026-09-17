@@ -161,7 +161,7 @@
     - `listAccounts()`, `createPost()` (text + media, now or scheduled, `x-request-id` idempotency), `getPost()`, `requestPresignedUpload()`.
     - SDK quirks handled: union return types guarded by `instanceof`; `MediaItem::setType()` (enum-validated, throws on null/empty) set only when a type is provided; `GetMediaPresignedUrlRequest::setContentType()` typed to the `MediaContentType` enum class but accepts MIME strings — bypassed via model array constructor; `CreatePostRequest::setScheduledFor()` needs `\DateTime` (wrapped with `\DateTime::createFromInterface`).
 - **DB schema**: `zernio_accounts` (mirror of Zernio-side connected accounts, incl. `is_active`/`needs_reconnection`/`synced_at`), `zernio_posts` (one row per compose action; `publish_now`/`scheduled_at`/`timezone`/`status`/`zernio_post_id`/`idempotency_key`/`error`), `zernio_post_account` pivot (per-account delivery status + `platform_post_url`) — custom pivot model `ZernioPostAccount` with `HasUuids` (required or MySQL 1364 on the uuid PK insert). Models + factories (`inactive`/`needsReconnection`/`scheduled`/`published`/`failed` states).
-- **`ZernioService`** (admin-facing): `syncAccounts()` upserts + deactivates removed accounts (even when the remote list is empty), `createPost()` persists local rows with an idempotency key *before* calling Zernio (a retry after network failure reuses the same `x-request-id`), applies per-platform results to pivots, marks posts/accounts `failed` on any throwable. Catch in controller covers `Throwable` (a bare `catch (Throwable)` without importing the global class silently never matches inside the namespaced controller — fixed, surfaced by tests).
+- **`ZernioService`** (admin-facing): `syncAccounts()` upserts + deactivates removed accounts (even when the remote list is empty), `createPost()` persists local rows with an idempotency key _before_ calling Zernio (a retry after network failure reuses the same `x-request-id`), applies per-platform results to pivots, marks posts/accounts `failed` on any throwable. Catch in controller covers `Throwable` (a bare `catch (Throwable)` without importing the global class silently never matches inside the namespaced controller — fixed, surfaced by tests).
 - **API key as admin-editable setting**: `zernio.api_key` + `zernio.timezone` added to `TradingConfig::pluckDefaults()` with `is_editable = false` (mobile config API only mutates `is_editable=true` rows; the admin System Settings page only lists `is_editable=false` rows). Key resolution stays DB-first with `ZERNIO_API_KEY` env fallback. The real key is set in `.env` (gitignored) and in the DB row, so it works now and the admin can rotate it later from `admin/settings` without a deploy.
 - **Routes** (`routes/web.php`, inside `['auth','is_admin']`): `GET admin/zernio/accounts`, `POST admin/zernio/accounts/sync`, `GET admin/zernio/posts`, `POST admin/zernio/posts`, `POST admin/zernio/media/presign` (returns JSON for the SPA). Controllers stay thin (FormRequest → one service call; `Throwable` → `ValidationException` flash).
 - **Frontend** (wayfinder-generated `@/routes/admin/zernio/*`): `admin/zernio/accounts.tsx` (account table + Refresh-sync form) and `admin/zernio/posts.tsx` (compose form: content textarea, account checkboxes, optional schedule + timezone select, media presign-and-PUT-to-storage flow with hidden `media[N][url|type]` inputs; post history with per-account status chips). Sidebar `mainNavItems` gained "Zernio accounts" + "Zernio posts".
@@ -204,3 +204,25 @@
 
 - 133/133 tests green, Pint clean, PHPStan clean on all touched files (the 3 pre-existing `FreeNewsApiProvider` errors remain, untouched). No frontend changes this session.
 - The `is_editable=false` settings decision means `zernio.api_key`/`zernio.timezone` are visible on the admin System Settings page but never served to the mobile config API — the earlier decision stands.
+
+## 2026-09-15 — Zernio post status refresh (admin post history)
+
+**Status:** completed
+
+**Changes:**
+
+- **Post status refresh** — the DECISIONS "Pending" item. `POST /admin/zernio/posts/{post}/refresh` (`admin.zernio.posts.refresh`) re-pulls the live status from Zernio via `getPost()` and reconciles the local row + per-account pivots:
+    - `ZernioService::refreshPostStatus(ZernioPost $post)` — no-op if the post never reached Zernio (`zernio_post_id` null); otherwise maps status (`processing`/`publishing` stay `pending`), stores the first per-platform `error_message` onto the post row when it fails, and re-applies platform results (status + `platform_post_url`) to pivots via the existing `applyPlatformResults`.
+    - Controller is thin: route-model-bound `ZernioPost`, `ZernioException`/`Throwable` → flash `toast`, redirect back.
+- **Frontend**: each post-history row gets a "Refresh status" + spinner button when it has a `zernio_post_id` and isn't done (`published`/`scheduled`); uses the wayfinder-generated `refresh.form(post.id)` helper.
+- **Tests**: +6 in `ZernioAdminTest` (21 total): pending→published pivot update, failure error_message persisted, no-op without a Zernio id, Zernio error surfaced as session error, 404 for unknown post, 403 for regular users. Also widened `FakeZernioClient::$postResult` docblock to `array<string, mixed>|null` (it was too narrow for the nested `platforms` — surfaced once tests were added to the phpstan path).
+
+**Pending:**
+
+- Per-platform `platformSpecificData` (Reddit `subreddit`, Instagram stories/reels/`shareToFeed`, location tags) is still the only remaining feature gap — posts lacking it fail on platforms that require it.
+- No automated refresh poller — status updates only happen when an admin clicks Refresh (deliberate; a scheduled poll can be added later if needed).
+
+**Notes:**
+
+- Live smoke: `refreshPostStatus()` against the real published Instagram post returned `published` + the existing `platform_post_url`, no changes needed.
+- Gate: 139/139 tests, Pint clean, PHPStan clean on all touched paths (the 3 pre-existing `FreeNewsApiProvider` errors remain untouched), `vp check` + `tsc --noEmit` + `vite build` pass.

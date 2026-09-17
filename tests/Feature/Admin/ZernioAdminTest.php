@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Contracts\Zernio\ZernioClient;
+use App\Exceptions\ZernioException;
 use App\Models\TradingConfig;
 use App\Models\User;
 use App\Models\ZernioAccount;
@@ -303,6 +304,111 @@ class ZernioAdminTest extends TestCase
         $this->assertContains('zernio.timezone', $keys);
     }
 
+    public function test_refresh_updates_the_post_status_from_zernio(): void
+    {
+        $fake = $this->fakeClient();
+        $account = ZernioAccount::factory()->create(['zernio_account_id' => 'acc-1']);
+        $post = ZernioPost::factory()->create([
+            'status' => 'pending',
+            'zernio_post_id' => 'zp-1',
+            'error' => null,
+        ]);
+        $post->accounts()->attach($account->id, ['status' => 'processing']);
+        $fake->postLookup = [
+            'id' => 'zp-1',
+            'status' => 'published',
+            'platforms' => [
+                ['platform' => 'x', 'account_id' => 'acc-1', 'status' => 'published', 'platform_post_url' => 'https://x.com/p/9'],
+            ],
+        ];
+
+        $this->actingAs($this->admin());
+
+        $this->post(route('admin.zernio.posts.refresh', $post))->assertRedirect();
+
+        $this->assertSame('published', $post->fresh()->status);
+        $this->assertDatabaseHas('zernio_post_account', [
+            'zernio_post_id' => $post->id,
+            'zernio_account_id' => $account->id,
+            'status' => 'published',
+            'platform_post_url' => 'https://x.com/p/9',
+        ]);
+    }
+
+    public function test_refresh_records_a_platform_error_message_on_failure(): void
+    {
+        $fake = $this->fakeClient();
+        $account = ZernioAccount::factory()->create(['zernio_account_id' => 'acc-1']);
+        $post = ZernioPost::factory()->create([
+            'status' => 'pending',
+            'zernio_post_id' => 'zp-1',
+            'error' => null,
+        ]);
+        $post->accounts()->attach($account->id, ['status' => 'processing']);
+        $fake->postLookup = [
+            'id' => 'zp-1',
+            'status' => 'failed',
+            'platforms' => [
+                ['platform' => 'x', 'account_id' => 'acc-1', 'status' => 'failed', 'platform_post_url' => null, 'error_message' => 'Reddit requires a subreddit.'],
+            ],
+        ];
+
+        $this->actingAs($this->admin());
+
+        $this->post(route('admin.zernio.posts.refresh', $post))->assertRedirect();
+
+        $post = $post->fresh();
+        $this->assertSame('failed', $post->status);
+        $this->assertSame('Reddit requires a subreddit.', $post->error);
+        $this->assertDatabaseHas('zernio_post_account', [
+            'zernio_post_id' => $post->id,
+            'zernio_account_id' => $account->id,
+            'status' => 'failed',
+        ]);
+    }
+
+    public function test_refresh_is_a_no_op_for_posts_that_never_reached_zernio(): void
+    {
+        $fake = $this->fakeClient();
+        $post = ZernioPost::factory()->create([
+            'status' => 'failed',
+            'zernio_post_id' => null,
+            'error' => 'offline',
+        ]);
+
+        $this->actingAs($this->admin());
+
+        $this->post(route('admin.zernio.posts.refresh', $post))->assertRedirect();
+
+        $this->assertArrayNotHasKey('getPost', $fake->calls);
+        $this->assertSame('failed', $post->fresh()->status);
+        $this->assertSame('offline', $post->fresh()->error);
+    }
+
+    public function test_refresh_reports_a_zernio_error(): void
+    {
+        $fake = $this->fakeClient();
+        $post = ZernioPost::factory()->create([
+            'status' => 'pending',
+            'zernio_post_id' => 'zp-1',
+            'error' => null,
+        ]);
+        $fake->throwOnGet = new ZernioException('Zernio down');
+
+        $this->actingAs($this->admin());
+
+        $this->post(route('admin.zernio.posts.refresh', $post))
+            ->assertSessionHasErrors('refresh');
+    }
+
+    public function test_refresh_returns_404_for_an_unknown_post(): void
+    {
+        $this->fakeClient();
+        $this->actingAs($this->admin());
+
+        $this->post(route('admin.zernio.posts.refresh', 'missing-id'))->assertNotFound();
+    }
+
     public function test_regular_users_cannot_sync_or_post(): void
     {
         $this->actingAs(User::factory()->create());
@@ -310,6 +416,16 @@ class ZernioAdminTest extends TestCase
         $this->post(route('admin.zernio.accounts.sync'))->assertForbidden();
         $this->post(route('admin.zernio.posts.store'))->assertForbidden();
         $this->post(route('admin.zernio.media.presign'))->assertForbidden();
+    }
+
+    public function test_refresh_is_forbidden_for_regular_users(): void
+    {
+        $this->fakeClient();
+        $post = ZernioPost::factory()->create(['zernio_post_id' => 'zp-1']);
+
+        $this->actingAs(User::factory()->create());
+
+        $this->post(route('admin.zernio.posts.refresh', $post))->assertForbidden();
     }
 }
 
@@ -321,8 +437,13 @@ class FakeZernioClient implements ZernioClient
     /** @var array<string, array<int, mixed>> */
     public array $calls = [];
 
-    /** @var array<string, string>|null */
+    /** @var array<string, mixed>|null */
     public ?array $postResult = null;
+
+    /** @var array<string, mixed>|null */
+    public ?array $postLookup = null;
+
+    public mixed $throwOnGet = null;
 
     public ?DateTimeInterface $lastScheduledAt = null;
 
@@ -369,7 +490,11 @@ class FakeZernioClient implements ZernioClient
     {
         $this->calls['getPost'][] = $postId;
 
-        return $this->postResult ?? ['id' => $postId, 'status' => 'pending', 'platforms' => []];
+        if ($this->throwOnGet !== null) {
+            throw $this->throwOnGet;
+        }
+
+        return $this->postLookup ?? $this->postResult ?? ['id' => $postId, 'status' => 'pending', 'platforms' => []];
     }
 
     public function requestPresignedUpload(string $filename, string $contentType, int $size = 0): array

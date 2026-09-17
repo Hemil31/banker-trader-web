@@ -1,9 +1,9 @@
 import { a as e, i as t, o as n, s as r } from './utils-D7vFs7oC.js';
-import { n as i } from './wayfinder-DPJui1gF.js';
-import { t as a } from './spinner-wiRFlGFK.js';
-import { a as o, i as s } from './app-agYMoroD.js';
+import { r as i } from './wayfinder-D1vVM27W.js';
+import { t as a } from './spinner-Dv0N6rHe.js';
+import { a as o, o as s } from './app-CYkRgsN7.js';
 import { a as c, i as l, n as u, r as d, t as f } from './card-y6orrvbC.js';
-import { n as p, t as m } from './label-B30W1_zK.js';
+import { n as p, t as m } from './label-DtDo4iC-.js';
 var h = e(),
     g = t();
 function _(e) {
@@ -95,7 +95,7 @@ function y(e) {
         : (S = t[8]);
     let C;
     t[9] === Symbol.for(`react.memo_cache_sentinel`)
-        ? ((C = s.form()), (t[9] = C))
+        ? ((C = o.form()), (t[9] = C))
         : (C = t[9]);
     let w;
     t[10] !== v || t[11] !== r.key || t[12] !== r.value
@@ -108,7 +108,7 @@ function y(e) {
                       let {
                           processing: t,
                           errors: n,
-                          recentlySuccessful: s,
+                          recentlySuccessful: o,
                       } = e;
                       return (0, g.jsxs)(g.Fragment, {
                           children: [
@@ -127,7 +127,7 @@ function y(e) {
                                                   htmlFor: `setting-${r.key}`,
                                                   children: r.key,
                                               }),
-                                              (0, g.jsx)(o, {
+                                              (0, g.jsx)(s, {
                                                   id: `setting-${r.key}`,
                                                   name: `value`,
                                                   type: v ? `password` : `text`,
@@ -151,7 +151,7 @@ function y(e) {
                                   ],
                               }),
                               (0, g.jsx)(p, { message: n.key ?? n.value }),
-                              s &&
+                              o &&
                                   (0, g.jsx)(`p`, {
                                       className: `text-sm text-green-600`,
                                       children: `Saved.`,

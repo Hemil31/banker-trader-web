@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Models\MarketHoliday;
 use App\Models\Order;
 use App\Models\Position;
 use App\Models\TradingAccount;
@@ -156,6 +157,47 @@ class RiskManagerTest extends TestCase
 
         $this->assertTrue($result['halted']);
         $this->assertSame('system_halted', $result['reason']);
+    }
+
+    public function test_halts_on_a_synced_market_holiday(): void
+    {
+        $account = TradingAccount::factory()->create();
+
+        MarketHoliday::create([
+            'mic' => 'XBOM',
+            'exchange' => 'Bombay Stock Exchange',
+            'date' => today()->toDateString(),
+            'day_of_week' => today()->englishDayOfWeek,
+            'is_weekend' => false,
+            'is_business_day' => false,
+            'holiday_name' => 'Diwali',
+            'is_early_close' => false,
+        ]);
+
+        $result = $this->risk->evaluateHalt($account->id);
+
+        $this->assertTrue($result['halted']);
+        $this->assertSame('market_holiday', $result['reason']);
+    }
+
+    public function test_does_not_halt_on_a_normal_trading_day(): void
+    {
+        $account = TradingAccount::factory()->create();
+
+        MarketHoliday::create([
+            'mic' => 'XBOM',
+            'exchange' => 'Bombay Stock Exchange',
+            'date' => today()->toDateString(),
+            'day_of_week' => today()->englishDayOfWeek,
+            'is_weekend' => false,
+            'is_business_day' => true,
+            'holiday_name' => null,
+            'is_early_close' => false,
+        ]);
+
+        $result = $this->risk->evaluateHalt($account->id);
+
+        $this->assertFalse($result['halted']);
     }
 
     public function test_is_duplicate_signal_detects_an_existing_live_order(): void

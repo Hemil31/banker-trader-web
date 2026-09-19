@@ -220,6 +220,95 @@ class TradingConfig extends Model
             editable: false,
         );
 
+        // Gemini API key, DB-backed with an env fallback (GEMINI_API_KEY) —
+        // see HttpGeminiClient. Same "not editable via the generic PATCH"
+        // treatment as news.api_key / zernio.api_key.
+        static::registerDefault(
+            'gemini.api_key',
+            '',
+            'gemini',
+            'string',
+            'Gemini API key',
+            'Google Gemini API key sent as the X-goog-api-key header. DB-backed with an env fallback (GEMINI_API_KEY) — see HttpGeminiClient.',
+            editable: false,
+        );
+
+        static::registerDefault(
+            'gemini.model',
+            (string) config('gemini.model', 'gemini-flash-lite-latest'),
+            'gemini',
+            'string',
+            'Gemini model',
+            'Model id used for AI post generation, e.g. gemini-flash-lite-latest. Must match a model actually enabled in the Gemini API console.',
+        );
+
+        static::registerDefault(
+            'gemini.rpm',
+            (int) config('gemini.rpm', 10),
+            'gemini',
+            'integer',
+            'Gemini requests/minute',
+            'Max Gemini calls per minute for AI post generation — must match the configured model\'s published RPM quota. Enforced by the gemini-generation queue rate limiter.',
+        );
+
+        static::registerDefault(
+            'gemini.rpd',
+            (int) config('gemini.rpd', 20),
+            'gemini',
+            'integer',
+            'Gemini requests/day',
+            'Max Gemini calls per day for AI post generation — must match the configured model\'s published RPD quota.',
+        );
+
+        // Brand/business context fed into every Gemini post-generation
+        // prompt (see GeminiPostGenerationService::buildPrompt). Editable
+        // like the risk/product config — no code change needed to update
+        // brand voice or audience.
+        static::registerDefault(
+            'content.brand_name',
+            'BankerTrader',
+            'content',
+            'string',
+            'Brand name',
+            'Brand/business name used in AI-generated social posts.',
+        );
+
+        static::registerDefault(
+            'content.business_description',
+            '',
+            'content',
+            'string',
+            'Business description',
+            'Short description of the business, fed into the AI post-generation prompt for context.',
+        );
+
+        static::registerDefault(
+            'content.target_audience',
+            'retail traders and investors',
+            'content',
+            'string',
+            'Target audience',
+            'Who AI-generated posts should be written for.',
+        );
+
+        static::registerDefault(
+            'content.tone',
+            'friendly and professional',
+            'content',
+            'string',
+            'Content tone',
+            'Desired tone for AI-generated post captions.',
+        );
+
+        static::registerDefault(
+            'content.default_hashtags',
+            [],
+            'content',
+            'array',
+            'Default hashtags',
+            'Hashtags to include in AI-generated posts when relevant (e.g. the brand tag).',
+        );
+
         // Emergency kill switch. Not editable via the generic PATCH endpoint —
         // only EmergencyControlService (and reconciliation, on a mismatch) may
         // flip these, so there is one clean, auditable path to halting the

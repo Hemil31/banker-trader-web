@@ -306,3 +306,77 @@
 - `ExecutionEngine::closePosition()` was already `public`, so `emergencyExitAll()` could call it directly with no engine changes needed.
 - Chose to keep reconciliation mismatches non-self-correcting by design (halt + alert, never auto-adjust either side) — per the original audit spec, this is exactly the kind of drift a human should look at, not code guessing which side is right.
 - This entry's own work merged against 4 commits of parallel Zernio-integration and watchlist-growth work from another session (`git pull` produced conflicts in `DECISIONS.md`, `app/Models/TradingConfig.php`, `bootstrap/app.php` — all resolved by keeping both sides' additions, since none of it was substantively overlapping logic, just independent appends to the same insertion points).
+
+## 2026-09-19 — Indian market-holiday calendar (apptastic-software/trading-calendar integration)
+
+**Status:** completed
+
+**Changes:**
+
+- **New pluggable integration**, mirroring `Contracts/News/{NewsProvider,FreeNewsApiProvider}`:
+  `app/Contracts/MarketCalendar/MarketCalendarProvider` (interface: `holidays(string $mic): array`) →
+  `JsonTradingCalendarProvider` (bound in `AppServiceProvider`). The engine had **zero** market-holiday
+  awareness before this — the scheduler runs `trader:auto`/`trader:reconcile` every weekday regardless of
+  Diwali, Republic Day, etc.
+- **Data source decision:** the user asked to integrate [apptastic-software/trading-calendar](https://github.com/apptastic-software/trading-calendar)
+  (a Python FastAPI service; India = MIC `XBOM`, Bombay Stock Exchange only — no NSE MIC in that repo, but
+  NSE/BSE share the same SEBI-mandated holiday calendar so XBOM data covers both). Initial plan was to run
+  it as a local Python subprocess (no Docker on this box) invoked from an artisan command — **reversed
+  mid-session** once the user clarified the production server runs PHP only. Landed instead on: run the
+  real `trading_calendar` package (their actual code, not a reimplementation) once, here, with Python
+  available, to generate a static JSON snapshot (`database/data/xbom_market_holidays.json`, 47 rows,
+  2024–2026 — `exchange_calendars@4.13.2` doesn't yet ship 2027 adhoc dates), and have `JsonTradingCalendarProvider`
+  read it with plain PHP (`json_decode`/`file_get_contents`, no network/subprocess call ever happens on the
+  server). `database/data/generate_xbom_holidays.py` + `NOTICE.md` document how to regenerate it — a
+  dev-machine-only step (needs `pip install exchange_calendars==4.13.2 holidays==0.102`), never run by the
+  app itself. A few adhoc BSE closures in the source data have `holiday_name: null` (the `holidays` PyPI
+  package doesn't recognize them, e.g. 2024-01-22's Ram Mandir consecration holiday) — `is_business_day`
+  is still correct for those, only the display name is missing.
+- **Schema**: `market_holidays` (uuid pk, `mic`+`date` unique, `day_of_week`, `is_weekend`,
+  `is_business_day`, nullable `holiday_name`, `is_early_close`, nullable `open_time`/`close_time`).
+  `App\Models\MarketHoliday` (`HasUuids`).
+- **`MarketCalendarService`**: `syncHolidays()` upserts by `[mic, date]` (idempotent); `isTradingDay()` is
+  DB-first and **defaults to `true`** when no row exists for a date — a missed sync must never silently
+  block trading, same fail-open caution as `MarketDataService`'s staleness checks.
+- **`market-calendar:sync`** artisan command, scheduled `dailyAt('05:45')` IST in `bootstrap/app.php`
+  (pre-market, ahead of `trader:auto`'s 9:15 window) — daily is generous since the bundled data barely
+  changes, but keeps a fresh DB copy in the normal sync-then-read shape used elsewhere in the app.
+- **Wired into `RiskManager::evaluateHalt()`**: a new check right after the platform kill-switch and ahead
+  of every per-account metric — `! isTradingDay(today())` → `halted=true, reason='market_holiday'`. Same
+  semantics as every other halt reason: blocks new entries, open positions still exit normally.
+- **Bonus wiring (user follow-up mid-session):** `FestivalProvider` existed already
+  (`GeminiPostGenerationService` consumes it to theme AI-generated social posts) but was bound to
+  `NullFestivalProvider` — "no calendar data source exists yet" per its own docblock. Added
+  `MarketHolidayFestivalProvider implements FestivalProvider`, backed by the same `market_holidays` table,
+  and swapped the `AppServiceProvider` binding. Named holidays now flow straight into the existing
+  `posts:generate` pipeline (already scheduled daily, `--from=today --to=+3 days`) as festival-themed
+  prompts, with zero changes to `GeminiPostGenerationService`/`GenerateAiPostJob` — exactly the swap point
+  its original docblock anticipated. Rows with `holiday_name: null` are treated as "no festival" rather
+  than surfacing a blank name.
+- **Tests**: `tests/Unit/MarketCalendarServiceTest.php` (4 — upsert, idempotency, isTradingDay true/false/
+  no-data-default) with an inline `FakeMarketCalendarProvider`; `tests/Unit/Festival/MarketHolidayFestivalProviderTest.php`
+  (3); `tests/Feature/Console/MarketCalendarSyncTest.php` (2, run against the **real** bundled JSON file,
+  not a fake — an end-to-end check that the shipped data is valid); `RiskManagerTest` +2 (halts on a
+  synced holiday, doesn't halt on a normal day).
+
+**Pending:**
+
+- **Production deploy** needs no new runtime dependency (PHP-only, as required) but the bundled data file
+  will need periodic regeneration (a developer, on a machine with Python, reruns
+  `database/data/generate_xbom_holidays.py` and commits the refreshed JSON) — no automated reminder for
+  this exists yet; 2027+ dates are already partially missing from upstream `exchange_calendars` data.
+- The handful of `holiday_name: null` adhoc BSE closures could be filled in by hand (they're identifiable
+  real events) but weren't, to avoid asserting festival names not confirmed against an authoritative source.
+- No admin/mobile UI surfaces `market_holidays` data yet (e.g. showing upcoming holidays) — only consumed
+  internally by `RiskManager` and `MarketHolidayFestivalProvider`.
+
+**Notes:**
+
+- 211/211 backend tests pass (full suite, including the 11 new ones above), Pint clean repo-wide (2 files
+  needed `pint` auto-fixes — import ordering, brace style — applied, not hand-formatted), PHPStan clean on
+  every touched file (`--memory-limit=1G`); the 3 pre-existing `FreeNewsApiProvider` errors remain, untouched.
+- `trading-calendar`'s own FastAPI/Docker layer (`main.py`'s `@app.get` routes, `uvicorn`, `slowapi`) was
+  deliberately not vendored — only the plain calendar-computation classes (`calendar.py`, `exchange.py`,
+  `exchanges.py`) were exercised, via a small script (`generate_xbom_holidays.py`) that calls their
+  `Exchanges`/`Calendar` objects directly. Faithful to the named repo's actual holiday logic without
+  standing up a service this app only ever needed to poll once a day.

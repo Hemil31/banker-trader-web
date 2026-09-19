@@ -60,6 +60,27 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyFifteenMinutes()
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        // Ensures an AI post-generation slot exists for today through the
+        // next 3 days for every active Zernio account, and queues
+        // GenerateAiPostJob for anything still pending/failed. The job's own
+        // rate-limiter + WithoutOverlapping middleware (see
+        // AppServiceProvider) is what actually paces Gemini calls — this
+        // just makes sure nothing is missed if a previous run failed.
+        // Holiday data changes rarely (bundled static file, see
+        // database/data/NOTICE.md) — a daily pre-market refresh of the
+        // market_holidays table is more than enough for RiskManager's
+        // market_holiday halt check to stay accurate.
+        $schedule->command('market-calendar:sync')
+            ->dailyAt('05:45')
+            ->timezone('Asia/Kolkata')
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        $schedule->command('posts:generate --from=today --to=+3 days --retry-failed')
+            ->dailyAt('06:00')
+            ->timezone('Asia/Kolkata')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

@@ -58,6 +58,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
+            "@php artisan migrate --force",
             "@php artisan dev"
         ],
         "lint": [

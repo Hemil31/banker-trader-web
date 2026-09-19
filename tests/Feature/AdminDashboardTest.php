@@ -58,7 +58,7 @@ class AdminDashboardTest extends TestCase
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page->component('admin/settings')
-            ->has('settings', fn ($settings) => $settings->where('0.key', 'news.api_key')->etc())
+            ->has('settings', fn ($settings) => $settings->where('0.key', 'gemini.api_key')->etc())
         );
     }
 

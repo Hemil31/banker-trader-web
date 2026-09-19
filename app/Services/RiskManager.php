@@ -23,7 +23,10 @@ use App\Models\TradingSignal;
  */
 class RiskManager
 {
-    public function __construct(protected TradingConfigService $config) {}
+    public function __construct(
+        protected TradingConfigService $config,
+        protected MarketCalendarService $marketCalendar,
+    ) {}
 
     /**
      * @param  string  $tradingAccountId
@@ -46,6 +49,13 @@ class RiskManager
             $reason = $this->config->get('system.halt_reason');
 
             return ['halted' => true, 'reason' => $reason ?: 'system_halted', 'metrics' => $metrics];
+        }
+
+        // Indian market holiday (synced from the bundled trading-calendar data,
+        // see MarketCalendarService) — blocks new entries same as every other
+        // halt reason here; open positions still exit normally.
+        if (! $this->marketCalendar->isTradingDay(today())) {
+            return ['halted' => true, 'reason' => 'market_holiday', 'metrics' => $metrics];
         }
 
         $lossCap = $this->config->float('risk.daily_loss_cap', 500);

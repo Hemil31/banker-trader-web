@@ -205,6 +205,28 @@
 - 133/133 tests green, Pint clean, PHPStan clean on all touched files (the 3 pre-existing `FreeNewsApiProvider` errors remain, untouched). No frontend changes this session.
 - The `is_editable=false` settings decision means `zernio.api_key`/`zernio.timezone` are visible on the admin System Settings page but never served to the mobile config API — the earlier decision stands.
 
+## 2026-09-18 — Watchlist growth 8→56 + Yahoo 429 resilience (in progress)
+
+**Status:** in-progress
+
+**Changes:**
+
+- **Resolved NSE/Yahoo tickers for 48 Screener.in stocks** (screen: "Current price > High price * 0.85 AND Market Cap > 100", pages 1–2, items 1–50). Inserted all 48 into `stocks` (`active=1`, `in_watchlist=1`, `exchange=NSE`, `yfinance_symbol` set). Watchlist went 8 → 56.
+    - Yahoo conventions used: NSE SME listings get `-SM.NS` (SIMCA-SM.NS, GJL-SM.NS, SUNLITE-SM.NS confirmed live); BSE-only get `.BO` (DEVSON.BO, RAJSEC.BO confirmed live).
+- **`YahooFinanceProvider` hardened for HTTP 429**: alternates `query2.finance.yahoo.com` → `query1` and retries with backoff (4s/8s/12s) instead of the old single-shot 2×500ms retry. Removed the nested `Http::retry()` (it doubled request volume and re-tripped Yahoo's burst limiter).
+- **Bulk backfill running in background** at a throttled pace (1 stock per `market:ingest --symbol=<id>`, 45s between successes, 300s cooldown + 3 tries per stock on 429). ~48 requests total; ETA 30–60 min once Yahoo opens a window.
+
+**Pending:**
+
+- Complete the 2y market-data backfill for the 48 new stocks; then re-run the DeliveryScalper latest-bar scan over the full 56-stock watchlist and report today's BUY candidates.
+- Cross-check ingested latest close vs screener CMP (script ready: `/tmp/opencode/cross_check.php`).
+- **Unresolved / not added:** Screener #12 Stellant Securities (no ticker found after 4 searches + Yahoo probes) and #28 Glass Wall Systems (appears unlisted/pre-IPO — private company). Report both to user.
+
+**Notes:**
+
+- Yahoo chart API rate-limits this IP aggressively (HTTP 429, time-windowed): sustained burst beyond ~1 request/20s locks the IP for minutes; `traders` eventually recover. Bulk backfill MUST stay paced.
+- Pre-existing risk (not changed): `trader:auto` (every 15 min) calls `getQuote()` per stock via the scanner → ~58 requests per run; with the bigger watchlist this makes burst-throttling more likely. Revisit scanner quote batching/caching before next market day.
+
 ## 2026-09-15 — Zernio post status refresh (admin post history)
 
 **Status:** completed

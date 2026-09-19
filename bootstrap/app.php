@@ -32,6 +32,21 @@ return Application::configure(basePath: dirname(__DIR__))
             ->timezone('Asia/Kolkata')
             ->hourly()
             ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        // Refresh market data after every close so scans always use the latest
+        // bar. Runs Mon–Fri 16:05 IST (after the 15:30 close) plus once more in
+        // the evening; Cron (schedule:run on the host) fires this automatically.
+        $schedule->command('market:ingest --from='.now()->subDays(10)->toDateString())
+            ->weekdays()
+            ->at('16:05')
+            ->timezone('Asia/Kolkata')
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        $schedule->command('market:ingest --from='.now()->subDays(10)->toDateString())
+            ->weekdays()
+            ->at('20:30')
+            ->timezone('Asia/Kolkata')
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

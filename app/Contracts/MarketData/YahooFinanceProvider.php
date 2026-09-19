@@ -7,26 +7,56 @@ use Illuminate\Support\Facades\Http;
 /**
  * Yahoo Finance chart API provider for NSE/BSE symbols (e.g. RELIANCE.NS).
  * Used by the data service to seed history; a live broker feed can replace it.
+ *
+ * Yahoo throttles this endpoint aggressively (HTTP 429), so each request
+ * alternates between two hosts and retries with exponential backoff.
  */
 class YahooFinanceProvider implements MarketDataProvider
 {
-    public function getHistory(string $symbol, string $from, string $to): array
-    {
-        $response = Http::timeout(20)
-            ->retry(2, 500)
-            ->withHeaders(['User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64)'])
-            ->get('https://query1.finance.yahoo.com/v8/finance/chart/'.rawurlencode($symbol), [
-                'period1' => strtotime($from),
-                'period2' => strtotime($to),
-                'interval' => '1d',
-                'events' => 'div,splits',
-            ]);
+    private const HOSTS = [
+        'https://query2.finance.yahoo.com/v8/finance/chart/',
+        'https://query1.finance.yahoo.com/v8/finance/chart/',
+    ];
 
-        if ($response->failed()) {
-            throw new \RuntimeException("Yahoo history request failed for {$symbol}");
+    /**
+     * @param  array<string, string|int>  $query
+     * @return array<string, mixed>
+     */
+    private function fetch(string $symbol, array $query): array
+    {
+        $attempts = 0;
+        $maxAttempts = 4;
+
+        while ($attempts < $maxAttempts) {
+            $host = self::HOSTS[$attempts % count(self::HOSTS)];
+
+            $response = Http::timeout(25)
+                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120'])
+                ->get($host.rawurlencode($symbol), $query);
+
+            if ($response->successful()) {
+                return $response->json() ?? [];
+            }
+
+            $attempts++;
+            if ($attempts < $maxAttempts) {
+                sleep(4 * $attempts); // backoff: 4s, 8s, 12s
+            }
         }
 
-        $result = $response->json('chart.result.0');
+        throw new \RuntimeException("Yahoo request failed for {$symbol}");
+    }
+
+    public function getHistory(string $symbol, string $from, string $to): array
+    {
+        $json = $this->fetch($symbol, [
+            'period1' => (int) strtotime($from),
+            'period2' => (int) strtotime($to),
+            'interval' => '1d',
+            'events' => 'div,splits',
+        ]);
+
+        $result = $json['chart']['result'][0] ?? null;
         if (! $result) {
             return [];
         }
@@ -57,18 +87,9 @@ class YahooFinanceProvider implements MarketDataProvider
 
     public function getQuote(string $symbol): array
     {
-        $response = Http::timeout(20)
-            ->withHeaders(['User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64)'])
-            ->get('https://query1.finance.yahoo.com/v8/finance/chart/'.rawurlencode($symbol), [
-                'interval' => '1d',
-                'range' => '1d',
-            ]);
+        $json = $this->fetch($symbol, ['interval' => '1d', 'range' => '1d']);
 
-        if ($response->failed()) {
-            throw new \RuntimeException("Yahoo quote request failed for {$symbol}");
-        }
-
-        $result = $response->json('chart.result.0');
+        $result = $json['chart']['result'][0] ?? null;
         $quote = $result['indicators']['quote'][0] ?? [];
         $close = $quote['close'][0] ?? null;
         $open = $quote['open'][0] ?? $close;

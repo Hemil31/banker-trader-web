@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "46b01dc49a1cc14a9c376583dac86106",
+    "content-hash": "df418fb6ff7923d83ef42cff8937b013",
     "packages": [
         {
             "name": "amphp/amp",
@@ -10078,6 +10078,68 @@
                 "source": "https://github.com/webmozarts/assert/tree/2.4.1"
             },
             "time": "2026-06-15T15:31:57+00:00"
+        },
+        {
+            "name": "zernio-dev/zernio-php",
+            "version": "0.0.780",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/zernio-dev/zernio-php.git",
+                "reference": "28430127ca0385f9a32228bf3f1c4ae7d6586380"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/zernio-dev/zernio-php/zipball/28430127ca0385f9a32228bf3f1c4ae7d6586380",
+                "reference": "28430127ca0385f9a32228bf3f1c4ae7d6586380",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "guzzlehttp/guzzle": "^7.3",
+                "guzzlehttp/psr7": "^1.7 || ^2.0",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.5",
+                "phpunit/phpunit": "^8.0 || ^9.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "lib/LateAliases.php"
+                ],
+                "psr-4": {
+                    "Zernio\\": "lib/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "unlicense"
+            ],
+            "authors": [
+                {
+                    "name": "OpenAPI",
+                    "homepage": "https://openapi-generator.tech"
+                }
+            ],
+            "description": "API reference for Zernio. Authenticate with a Bearer API key. Base URL: https://zernio.com/api  Versioning and deprecation: all endpoints are versioned in the URL path (current version: /v1). Breaking changes only ship in a new path version; existing versions keep working. Deprecated operations are marked 'deprecated: true' in this spec and announced in the changelog (https://zernio.com/changelog) before removal.  Errors: every 4xx/5xx response is application/json with a machine-readable 'code' and a human-readable 'error' message (see the ErrorResponse schema).",
+            "homepage": "https://openapi-generator.tech",
+            "keywords": [
+                "api",
+                "openapi",
+                "openapi-generator",
+                "openapitools",
+                "php",
+                "rest",
+                "sdk"
+            ],
+            "support": {
+                "issues": "https://github.com/zernio-dev/zernio-php/issues",
+                "source": "https://github.com/zernio-dev/zernio-php/tree/v0.0.780"
+            },
+            "time": "2026-09-14T10:07:46+00:00"
         }
     ],
     "packages-dev": [

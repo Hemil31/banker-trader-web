@@ -18,7 +18,8 @@
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.14",
         "smartapi-php/angelbroking": "dev-main",
-        "upstox/upstox-php-sdk": "^1.30"
+        "upstox/upstox-php-sdk": "^1.30",
+        "zernio-dev/zernio-php": "^0.0.780"
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",

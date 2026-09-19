@@ -41,10 +41,10 @@ Everything is JSON with the envelope `{ "success": bool, "message": string, "dat
 
 ### Company admin (master table)
 
-| Route | Auth | Description |
-|---|---|---|
-| `GET /api/admin/users` | `auth:api`, `is_admin` | Every user with per-account PnL (realized + unrealized) and product-usage counts + company summary |
-| `GET /api/admin/users/{user}` | `auth:api`, `is_admin` | User profile, account breakdown, 25 most recent paper trades |
+| Route                         | Auth                   | Description                                                                                        |
+| ----------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------- |
+| `GET /api/admin/users`        | `auth:api`, `is_admin` | Every user with per-account PnL (realized + unrealized) and product-usage counts + company summary |
+| `GET /api/admin/users/{user}` | `auth:api`, `is_admin` | User profile, account breakdown, 25 most recent paper trades                                       |
 
 Users with `is_admin = true` can access the admin endpoints. The web sign-in is the company admin sign-in.
 

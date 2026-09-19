@@ -33,16 +33,21 @@ return Application::configure(basePath: dirname(__DIR__))
             ->hourly()
             ->appendOutputTo(storage_path('logs/scheduler.log'));
 
-        // Refresh the last week of OHLCV bars daily after close so trader:auto
-        // never scans off stale data (was previously manual-only — see
-        // RiskManager's stale-data staleness gate, which depends on this
-        // running regularly). --from is a rolling 7-day window (idempotent
-        // upsert), not the full history, to keep the daily run light.
-        $schedule->command('market:ingest', ['--from' => now()->subDays(7)->toDateString()])
+        // Refresh market data after every close so scans always use the latest
+        // bar. Runs Mon–Fri 16:05 IST (after the 15:30 close) plus once more in
+        // the evening; Cron (schedule:run on the host) fires this automatically.
+        // (Was previously manual-only — see RiskManager's stale-data gate,
+        // which depends on this running regularly.)
+        $schedule->command('market:ingest --from='.now()->subDays(10)->toDateString())
             ->weekdays()
+            ->at('16:05')
             ->timezone('Asia/Kolkata')
-            ->dailyAt('15:45')
-            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        $schedule->command('market:ingest --from='.now()->subDays(10)->toDateString())
+            ->weekdays()
+            ->at('20:30')
+            ->timezone('Asia/Kolkata')
             ->appendOutputTo(storage_path('logs/scheduler.log'));
 
         // Mandatory DB-vs-broker position check (Step 14 of the platform

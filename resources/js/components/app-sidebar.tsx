@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, KeyRound } from 'lucide-react';
+import { LayoutGrid, KeyRound, Share2, Send } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -13,6 +13,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard, settings } from '@/routes/admin';
+import zernio from '@/routes/admin/zernio';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -25,6 +26,16 @@ const mainNavItems: NavItem[] = [
         title: 'Integration settings',
         href: settings(),
         icon: KeyRound,
+    },
+    {
+        title: 'Zernio accounts',
+        href: zernio.accounts(),
+        icon: Share2,
+    },
+    {
+        title: 'Zernio posts',
+        href: zernio.posts(),
+        icon: Send,
     },
 ];
 

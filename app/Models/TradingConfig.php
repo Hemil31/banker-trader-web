@@ -197,6 +197,29 @@ class TradingConfig extends Model
             editable: false,
         );
 
+        static::registerDefault(
+            'zernio.api_key',
+            '',
+            'zernio',
+            'string',
+            'Zernio API key',
+            'Zernio API key sent as the Authorization: Bearer header. DB-backed with an env fallback (ZERNIO_API_KEY) — see SdkZernioClient.',
+            editable: false,
+        );
+
+        // Timezone used when interpreting the admin-entered "scheduled at"
+        // datetime for Zernio posts. Company-wide (all admins share the same
+        // posting schedule), so it stays off the per-user config API.
+        static::registerDefault(
+            'zernio.timezone',
+            'Asia/Kolkata',
+            'zernio',
+            'string',
+            'Timezone',
+            'Timezone for Zernio scheduled posts, e.g. Asia/Kolkata.',
+            editable: false,
+        );
+
         // Emergency kill switch. Not editable via the generic PATCH endpoint —
         // only EmergencyControlService (and reconciliation, on a mismatch) may
         // flip these, so there is one clean, auditable path to halting the

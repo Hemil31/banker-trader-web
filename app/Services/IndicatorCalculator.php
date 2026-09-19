@@ -40,6 +40,10 @@ class IndicatorCalculator
             'ma200' => $n >= 200 ? $this->sma($closes, 200) : null,
             'ret3d' => $n >= 4 ? $this->pctChange($closes, 3) : null,
             'ret5d' => $n >= 6 ? $this->pctChange($closes, 5) : null,
+            'ret7d' => $n >= 8 ? $this->pctChange($closes, 7) : null,
+            'ret10d' => $n >= 11 ? $this->pctChange($closes, 10) : null,
+            'ret12d' => $n >= 13 ? $this->pctChange($closes, 12) : null,
+            'ret15d' => $n >= 16 ? $this->pctChange($closes, 15) : null,
             'dist_from_20d_high' => $n >= 20 ? $this->distanceFromHigh($closes, 20) : null,
             'volume_ratio' => $this->volumeRatio($rows, 20),
             'avg_volume_20d' => $this->avgVolume($rows, 20),
@@ -231,7 +235,9 @@ class IndicatorCalculator
         return [
             'rsi14' => null, 'atr14' => null, 'ma5' => null, 'ma10' => null,
             'ma20' => null, 'ma50' => null, 'ma200' => null, 'ret3d' => null,
-            'ret5d' => null, 'dist_from_20d_high' => null, 'volume_ratio' => null,
+            'ret5d' => null, 'ret7d' => null, 'ret10d' => null,
+            'ret12d' => null, 'ret15d' => null,
+            'dist_from_20d_high' => null, 'volume_ratio' => null,
             'avg_volume_20d' => null, 'last_close' => null, 'last_volume' => null,
             'daily_range_pct' => null,
         ];

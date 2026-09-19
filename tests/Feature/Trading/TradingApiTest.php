@@ -93,7 +93,8 @@ class TradingApiTest extends TestCase
 
     public function test_config_update_accepts_numeric_value_and_persists_it(): void
     {
-        Passport::actingAs($this->user);
+        $admin = User::factory()->create(['is_admin' => true]);
+        Passport::actingAs($admin);
 
         $this->patchJson('/api/trading/config', [
             'key' => 'risk.capital',
@@ -105,12 +106,25 @@ class TradingApiTest extends TestCase
 
     public function test_config_update_rejects_unknown_keys(): void
     {
-        Passport::actingAs($this->user);
+        $admin = User::factory()->create(['is_admin' => true]);
+        Passport::actingAs($admin);
 
         $this->patchJson('/api/trading/config', [
             'key' => 'does.not.exist',
             'value' => '1',
         ])->assertUnprocessable();
+    }
+
+    public function test_config_update_is_rejected_for_non_admin_users(): void
+    {
+        Passport::actingAs($this->user);
+
+        $this->patchJson('/api/trading/config', [
+            'key' => 'risk.capital',
+            'value' => '150000',
+        ])->assertForbidden();
+
+        $this->assertNotSame(150000.0, TradingConfig::get('risk.capital'));
     }
 
     public function test_paper_run_triggers_a_session_and_reports_counts(): void

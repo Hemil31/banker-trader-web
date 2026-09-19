@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\AdminUserController;
+use App\Http\Controllers\Api\Admin\TradingSafetyController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Broker\BrokerConnectionController;
 use App\Http\Controllers\Api\Broker\BrokerController;
@@ -46,7 +47,9 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/news', [NewsController::class, 'index'])->name('api.news');
 
     Route::get('/trading/config', [TradingConfigController::class, 'index'])->name('api.trading.config.index');
-    Route::patch('/trading/config', [TradingConfigController::class, 'update'])->name('api.trading.config.update');
+    Route::patch('/trading/config', [TradingConfigController::class, 'update'])
+        ->middleware('is_admin')
+        ->name('api.trading.config.update');
 
     Route::post('/trading/run', [PaperRunController::class, 'store'])->name('api.trading.run');
 
@@ -70,5 +73,13 @@ Route::middleware('auth:api')->group(function () {
     Route::middleware('is_admin')->prefix('admin')->group(function () {
         Route::get('/users', [AdminUserController::class, 'index'])->name('api.admin.users');
         Route::get('/users/{user}', [AdminUserController::class, 'show'])->name('api.admin.users.show');
+
+        // Emergency controls — platform-wide by default, pass account_id to scope.
+        Route::get('/safety/status', [TradingSafetyController::class, 'status'])->name('api.admin.safety.status');
+        Route::post('/safety/halt', [TradingSafetyController::class, 'halt'])->name('api.admin.safety.halt');
+        Route::post('/safety/resume', [TradingSafetyController::class, 'resume'])->name('api.admin.safety.resume');
+        Route::post('/safety/cancel-pending', [TradingSafetyController::class, 'cancelPending'])->name('api.admin.safety.cancel-pending');
+        Route::post('/safety/emergency-exit', [TradingSafetyController::class, 'emergencyExit'])->name('api.admin.safety.emergency-exit');
+        Route::post('/safety/reconcile', [TradingSafetyController::class, 'reconcile'])->name('api.admin.safety.reconcile');
     });
 });

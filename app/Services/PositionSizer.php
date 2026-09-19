@@ -18,9 +18,13 @@ class PositionSizer
 
     public const DEFAULT_CAPITAL = 100000; // ₹1,00,000
 
-    public const MAX_PCT_PER_STOCK = 0.20; // 20%
+    // Stored/read as percentages (e.g. 20, 70), matching TradingConfig::pluckDefaults()
+    // and the /100 division below — do not change these back to fractions (0.20/0.70),
+    // that was a latent bug that collapsed sizing to near-zero whenever the DB config
+    // rows were missing and these defaults kicked in.
+    public const MAX_PCT_PER_STOCK = 20; // 20%
 
-    public const MAX_EXPOSURE_PCT = 0.70;  // 70% ceiling
+    public const MAX_EXPOSURE_PCT = 70;  // 70% ceiling
 
     /**
      * Serve config reads from an in-memory snapshot (used by the backtester).

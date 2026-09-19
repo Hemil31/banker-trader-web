@@ -27,6 +27,20 @@ class PortfolioManager
     }
 
     /**
+     * Whether an account already has an open position in this stock. The DB
+     * enforces at most one open position per (account, stock) — checking
+     * here lets callers reject a second entry with a clean reason instead of
+     * letting the unique-constraint violation bubble up as a raw exception.
+     */
+    public function hasOpenPosition(string $tradingAccountId, string $stockId): bool
+    {
+        return Position::where('trading_account_id', $tradingAccountId)
+            ->where('stock_id', $stockId)
+            ->where('status', 'open')
+            ->exists();
+    }
+
+    /**
      * Recompute unrealized P&L for every open position assuming the current
      * (stored) latest close is the mark-to-market price.
      *

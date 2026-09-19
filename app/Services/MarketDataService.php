@@ -73,6 +73,31 @@ class MarketDataService
     }
 
     /**
+     * Whether a stock's stored data hasn't been refreshed within the allowed
+     * freshness window (e.g. market:ingest hasn't run in days). Trading
+     * decisions must not be made off stale prices.
+     */
+    public function isStale(Stock $stock, int $maxAgeDays): bool
+    {
+        $last = MarketData::where('stock_id', $stock->id)->orderByDesc('trade_date')->first();
+
+        return $this->isRowStale($last, $maxAgeDays);
+    }
+
+    /**
+     * Same freshness check against an already-loaded row, so callers that
+     * already hold the latest MarketData row don't need a second query.
+     */
+    public function isRowStale(?MarketData $row, int $maxAgeDays): bool
+    {
+        if (! $row) {
+            return false;
+        }
+
+        return $row->trade_date->diffInDays(today()) > $maxAgeDays;
+    }
+
+    /**
      * Live quote for a stock through the configured provider.
      *
      * @return array{open: float, high: float, low: float, close: float, volume: int}

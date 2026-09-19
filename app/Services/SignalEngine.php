@@ -36,6 +36,7 @@ class SignalEngine
         $generated = [];
         $rejected = [];
         $marketOk = $this->marketConditionOk();
+        $maxStalenessDays = $this->config->int('risk.max_data_staleness_days', 4);
 
         foreach ($stocks as $stock) {
             $rows = $this->marketData->dailyData($stock);
@@ -43,6 +44,13 @@ class SignalEngine
             if (! $marketOk) {
                 $this->persistRejected($stock, 'market_filter', 'Market filter blocked');
                 $rejected[] = ['stock' => $stock->symbol ?? $stock->yfinance_symbol, 'reason' => 'market_filter'];
+
+                continue;
+            }
+
+            if ($this->marketData->isRowStale($rows->last(), $maxStalenessDays)) {
+                $this->persistRejected($stock, 'stale_market_data', "No fresh data within {$maxStalenessDays} days");
+                $rejected[] = ['stock' => $stock->symbol ?? $stock->yfinance_symbol, 'reason' => 'stale_market_data'];
 
                 continue;
             }

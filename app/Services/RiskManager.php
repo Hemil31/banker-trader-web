@@ -9,13 +9,16 @@ use App\Models\TradingSignal;
 
 /**
  * Enforces the daily risk wrapper around trading:
+ *  - platform-wide kill switch (system.trading_halted — EmergencyControlService
+ *    / PositionReconciliationService)
  *  - daily P&L target (default ₹500) and daily loss cap (default ₹500)
- *  - max trades per day (default 3–5)
+ *  - max trades per day (default 3–5) and max open positions (default 10)
  *  - duplicate-order protection (no order twice for the same signal)
  *  - no-martingale rule (no adding to losers)
  *
  * Once the daily profit target is reached no new entries are opened, locking
- * in the day's gains; open positions keep being monitored and exited.
+ * in the day's gains; open positions keep being monitored and exited. Same
+ * for every other halt reason here — they only ever block new entries.
  * Every decision is surfaced so the execution engine can halt trading.
  */
 class RiskManager
@@ -34,13 +37,26 @@ class RiskManager
     {
         $metrics = $this->metrics($tradingAccountId);
 
+        // Platform-wide kill switch — checked first and ahead of the
+        // per-account metrics query even mattering, since it blocks every
+        // account regardless of its own numbers. Only EmergencyControlService
+        // (manual) or PositionReconciliationService (on a mismatch) may set
+        // this; it is not reachable through the generic config PATCH.
+        if ($this->config->bool('system.trading_halted', false)) {
+            $reason = $this->config->get('system.halt_reason');
+
+            return ['halted' => true, 'reason' => $reason ?: 'system_halted', 'metrics' => $metrics];
+        }
+
         $lossCap = $this->config->float('risk.daily_loss_cap', 500);
         $target = $this->config->float('risk.daily_target', 500);
         $maxTrades = $this->config->int('risk.max_trades_per_day', 5);
+        $maxOpenPositions = $this->config->int('risk.max_open_positions', 10);
 
         $haltedLoss = -$metrics['realized'] > $lossCap;
         $haltedTarget = $target > 0 && $metrics['realized'] >= $target;
         $haltedTrades = $metrics['trades_count'] >= $maxTrades;
+        $haltedPositions = $maxOpenPositions > 0 && $metrics['open_positions'] >= $maxOpenPositions;
 
         if ($haltedLoss) {
             return ['halted' => true, 'reason' => 'daily_loss_cap', 'metrics' => $metrics];
@@ -52,6 +68,10 @@ class RiskManager
 
         if ($haltedTrades) {
             return ['halted' => true, 'reason' => 'max_trades_reached', 'metrics' => $metrics];
+        }
+
+        if ($haltedPositions) {
+            return ['halted' => true, 'reason' => 'max_open_positions_reached', 'metrics' => $metrics];
         }
 
         return ['halted' => false, 'reason' => null, 'metrics' => $metrics];

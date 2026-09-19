@@ -177,6 +177,7 @@ class PaperTradingService
     protected function priceMap(Collection $positions): array
     {
         $map = [];
+        $maxStalenessDays = $this->config->int('risk.max_data_staleness_days', 4);
 
         foreach ($positions as $position) {
             if (isset($map[$position->stock_id])) {
@@ -184,7 +185,13 @@ class PaperTradingService
             }
 
             $stock = $position->stock;
-            $latest = $stock ? $this->marketData->latestClose($stock) : null;
+            if (! $stock || $this->marketData->isStale($stock, $maxStalenessDays)) {
+                // No fresh price this cycle — leave the position untouched
+                // rather than act on a stale close (no false SL/target exits).
+                continue;
+            }
+
+            $latest = $this->marketData->latestClose($stock);
             if ($latest !== null) {
                 $map[$position->stock_id] = (float) $latest;
             }

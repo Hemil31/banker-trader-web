@@ -10,6 +10,7 @@ use App\Models\TradingAccount;
 use App\Models\TradingPnlDaily;
 use App\Models\TradingPnlLedger;
 use App\Models\TradingSignal;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Executes orders through a BrokerAdapter and manages live exits:
@@ -37,9 +38,37 @@ class ExecutionEngine
      */
     public function enter(TradingSignal $signal, TradingAccount $account, ?int $customQuantity = null): array
     {
+        // Serialize entries for the same (account, signal) so two concurrent
+        // callers (e.g. a manual "enter" click racing the scheduled trader:auto
+        // run) can't both pass the duplicate-signal check before either row is
+        // inserted. Works with the database cache driver (cache_locks table).
+        $lock = Cache::lock("order-entry:{$account->id}:{$signal->id}", 30);
+
+        if (! $lock->get()) {
+            return $this->failed($signal, $account, 'concurrent_entry_in_progress');
+        }
+
+        try {
+            return $this->enterLocked($signal, $account, $customQuantity);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * @return array{order: ?Order, position: ?Position, ok: bool, reason?: string}
+     */
+    protected function enterLocked(TradingSignal $signal, TradingAccount $account, ?int $customQuantity = null): array
+    {
         // Duplicate-order protection
         if ($this->risk->isDuplicateSignal($signal, $account->id)) {
             return $this->failed($signal, $account, 'duplicate_signal');
+        }
+
+        // Only one open position per (account, stock) is allowed — reject
+        // cleanly here rather than letting the DB unique constraint throw.
+        if ($this->portfolio->hasOpenPosition($account->id, $signal->stock_id)) {
+            return $this->failed($signal, $account, 'position_already_open');
         }
 
         // Daily risk wrapper

@@ -149,6 +149,8 @@ class TradingConfig extends Model
             ['risk', 'risk.daily_target', 'float', 'Daily profit target (₹)', 'Stop opening new trades once reached', 500],
             ['risk', 'risk.daily_loss_cap', 'float', 'Daily max loss (₹)', 'Stop opening new trades once hit', 500],
             ['risk', 'risk.max_trades_per_day', 'integer', 'Max new trades/day', 'Maximum new trades opened per day', 5],
+            ['risk', 'risk.max_open_positions', 'integer', 'Max open positions', 'Stop opening new trades once this many positions are open (0 = no cap)', 10],
+            ['risk', 'risk.max_data_staleness_days', 'integer', 'Max data staleness (days)', 'Skip scanning/monitoring a stock whose latest stored bar is older than this many days', 4],
             ['risk', 'risk.trailing_enabled', 'boolean', 'Trailing stop enabled', 'Trail stop up once a position is profitable', false],
             ['risk', 'risk.trailing_pct', 'float', 'Trailing stop %', 'Trailing stop distance below the high', 1.5],
             ['position', 'position.max_pct_per_stock', 'float', 'Max per-stock allocation %', 'Maximum % of capital in a single stock', 20],
@@ -192,6 +194,30 @@ class TradingConfig extends Model
             'string',
             'News API key',
             'FreeNewsApi.io key sent as the x-api-key header. DB-backed with an env fallback (NEWS_API_KEY) — see FreeNewsApiProvider.',
+            editable: false,
+        );
+
+        // Emergency kill switch. Not editable via the generic PATCH endpoint —
+        // only EmergencyControlService (and reconciliation, on a mismatch) may
+        // flip these, so there is one clean, auditable path to halting the
+        // platform rather than it being reachable as a side effect of a
+        // routine config edit.
+        static::registerDefault(
+            'system.trading_halted',
+            false,
+            'system',
+            'boolean',
+            'Trading halted',
+            'When true, RiskManager blocks all new order entries platform-wide. Open positions still exit normally. Set via EmergencyControlService, not this endpoint.',
+            editable: false,
+        );
+        static::registerDefault(
+            'system.halt_reason',
+            '',
+            'system',
+            'string',
+            'Halt reason',
+            'Why system.trading_halted was set — surfaced as the RiskManager halt reason (e.g. manual_halt, reconciliation_mismatch).',
             editable: false,
         );
     }

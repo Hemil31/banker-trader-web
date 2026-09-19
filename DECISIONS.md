@@ -442,3 +442,16 @@
 **Notes:**
 - No Zernio cancel/delete API wired — the 14:30 remote post cannot be cancelled after the fact (it will publish today as intended).
 - 214/214 backend tests pass; Pint clean; PHPStan clean on all touched files.
+
+## 2026-09-19 — `php artisan serve` now runs the scheduler
+**Status:** completed
+
+**Changes:**
+- New `App\Console\Commands\Serve` overrides the framework `serve` command: starts `php artisan schedule:work` as a child process next to the PHP server (same `.env`-reload env rule as the server process) and stops it when the server exits. Every task in `bootstrap/app.php` (`trader:auto`, `trader:reconcile`, `news:fetch`, `market:ingest`, `posts:generate`, `queue:work`, `market-calendar:sync`) now fires on schedule with no host cron entry.
+- `--no-schedule` opts out.
+- Child output is discarded (`disableOutput()`, since nothing polls it and a full pipe would block it); task output still goes to `storage/logs/scheduler.log` via each event's `appendOutputTo`.
+
+**Notes:**
+- If a host cron `schedule:run` also exists on the same machine, tasks without `withoutOverlapping()` (`news:fetch`, `market:ingest`, `market-calendar:sync`) would run twice — remove the cron entry or start with `--no-schedule`.
+- An already-running `artisan serve` keeps the old behaviour until restarted.
+- A hard kill of the `artisan serve` PHP process (`taskkill /F` without `/T`) skips the shutdown hook and orphans `schedule:work`; Ctrl+C / normal exit stops both.

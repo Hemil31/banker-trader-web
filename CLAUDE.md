@@ -83,7 +83,7 @@ Core pipeline, wired together per run (manual `/api/trading/run`, `paper-trades`
 
 ### Scheduler
 
-Defined in `bootstrap/app.php` (`->withSchedule()`), not `app/Console/Kernel.php`: `trader:auto` every 15 min on weekdays 09:15–15:25 IST, `news:fetch` hourly in the same window, both `withoutOverlapping()`. The host still needs `* * * * * php artisan schedule:run` in cron — the schedule definition alone doesn't run anything.
+Defined in `bootstrap/app.php` (`->withSchedule()`), not `app/Console/Kernel.php`: `trader:auto` every 15 min on weekdays 09:15–15:25 IST, `news:fetch` hourly in the same window, both `withoutOverlapping()`. `php artisan serve` is overridden (`app/Console/Commands/Serve.php`) to run `schedule:work` alongside the server, so no cron entry is needed; use `serve --no-schedule` if a host cron `schedule:run` already exists (otherwise tasks run twice).
 
 ## Coding conventions
 

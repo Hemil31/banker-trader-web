@@ -61,12 +61,38 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/scheduler.log'));
 
-        // Ensures an AI post-generation slot exists for today through the
-        // next 3 days for every active Zernio account, and queues
-        // GenerateAiPostJob for anything still pending/failed. The job's own
-        // rate-limiter + WithoutOverlapping middleware (see
-        // AppServiceProvider) is what actually paces Gemini calls — this
-        // just makes sure nothing is missed if a previous run failed.
+        // Daily social-post deployment: two windows (09:00 and 21:00 IST).
+        // Each run ensures AI post-generation slots (auto prompt + title +
+        // rolling content category) exist for TODAY through the next 3 days at
+        // its scheduled_time and queues GenerateAiPostJob for anything still
+        // pending/failed — so a missing run is self-healed by the next window.
+        // The job's own rate-limiter + WithoutOverlapping middleware (see
+        // AppServiceProvider) is what actually paces Gemini calls. queue:work
+        // then executes the queued jobs a few minutes after each window.
+        $schedule->command('posts:generate --time=09:00:00 --from=today --to=+3 days --retry-failed')
+            ->dailyAt('09:00')
+            ->timezone('Asia/Kolkata')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        $schedule->command('posts:generate --time=21:00:00 --from=today --to=+3 days --retry-failed')
+            ->dailyAt('21:00')
+            ->timezone('Asia/Kolkata')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        $schedule->command('queue:work database --stop-when-empty --timeout=300')
+            ->dailyAt('09:05')
+            ->timezone('Asia/Kolkata')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        $schedule->command('queue:work database --stop-when-empty --timeout=300')
+            ->dailyAt('21:05')
+            ->timezone('Asia/Kolkata')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
         // Holiday data changes rarely (bundled static file, see
         // database/data/NOTICE.md) — a daily pre-market refresh of the
         // market_holidays table is more than enough for RiskManager's
@@ -74,12 +100,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('market-calendar:sync')
             ->dailyAt('05:45')
             ->timezone('Asia/Kolkata')
-            ->appendOutputTo(storage_path('logs/scheduler.log'));
-
-        $schedule->command('posts:generate --from=today --to=+3 days --retry-failed')
-            ->dailyAt('06:00')
-            ->timezone('Asia/Kolkata')
-            ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/scheduler.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {

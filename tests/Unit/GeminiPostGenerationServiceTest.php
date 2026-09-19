@@ -110,6 +110,22 @@ class GeminiPostGenerationServiceTest extends TestCase
         $this->assertStringContainsString('Platform: instagram', $client->lastPrompt);
         $this->assertStringContainsString('Content category: promo', $client->lastPrompt);
     }
+
+    public function test_prompt_includes_the_slot_title_and_direction_text(): void
+    {
+        $client = new StubGeminiClient(json_encode([
+            'caption' => 'x', 'hashtags' => ['x'], 'cta' => 'x', 'content_type' => 'x',
+        ]));
+
+        $request = $this->request();
+        $request->forceFill(['title' => 'Swing Into The Weekend', 'prompt' => 'Ask traders how their week went and invite replies.']);
+        $request->save();
+
+        $this->service($client)->generate($request);
+
+        $this->assertStringContainsString('Post title/name: Swing Into The Weekend', $client->lastPrompt);
+        $this->assertStringContainsString('Write the post around this direction: Ask traders how their week went and invite replies.', $client->lastPrompt);
+    }
 }
 
 class StubGeminiClient implements GeminiClient
@@ -123,6 +139,14 @@ class StubGeminiClient implements GeminiClient
         $this->lastPrompt = $prompt;
 
         return ['text' => $this->responseText, 'model' => 'gemini-flash-lite-latest', 'raw' => []];
+    }
+
+    /**
+     * @return array{bytes: string, mime: string, model: string}
+     */
+    public function generateImage(string $prompt): array
+    {
+        return ['bytes' => 'fake-image-bytes', 'mime' => 'image/png', 'model' => 'gemini-image'];
     }
 }
 

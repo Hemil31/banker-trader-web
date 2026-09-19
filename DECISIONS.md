@@ -1,6 +1,50 @@
-# BankerTrader — Decisions Log
+# BankerTrader — Decision Log
 
-## 2026-09-09 — Upstox live broker integration (backend + Flutter)
+## 2026-09-19 — Two-window live deployment + prompt-first AI post flow
+**Status:** deployed (code merged, scheduler live on host cron); image delivery blocked on Gemini free-tier quota
+
+**Context / why:**
+- Requested "daily 09:00 and 21:00 IST automated posts" (real post today, "if any doubt ask"). Earlier today the old 06:00-only window had already scheduled a 10:00-shifted general slot; the user's flow is: ① auto-create the prompt (with a content type/name) → ② hand that prompt + a post name to Gemini → ③ Gemini writes a real post, and that post is scheduled (deployed) — all without a manual default/placeholder.
+
+**Changes:**
+- `posts:generate` now takes `--time=H:i[:s]` (default 09:00:00) and stores `scheduled_time`, plus optional `--category/--title/--prompt` overrides for the auto-generated brief. Every new slot is created "prompt-first": a deterministically rotated content category (`engagement|educational|promotional|festival` by day-of-year, distinct morning vs evening), a post title/name (`{brand} · {Weekday} {Category}`), and a direction prompt — all written to `title` + `prompt`, never a static default. Slot idempotency kept via the (date, account, category) unique key.
+- `GenerateAiPostJob` fills the slot from Gemini, then **auto-renders a real, unique AI image per post** (`HttpGeminiClient::generateImage`, configurable `gemini.image_model` = `gemini-2.5-flash-preview-image`) when the platform requires media (Instagram) — replacing the static `public/assets/default-post.png` placeholder (file removed). Gemini builds a per-post image prompt from the slot's own title/caption/category, so every post gets artwork, not a shared default. `defaultMedia` → renamed `generatedMedia`; image/model timeouts added to `config/gemini.php`.
+- Scheduler (`bootstrap/app.php`): `posts:generate --time=09:00:00 --from=today --to=+3 days --retry-failed` daily at 09:00 IST and `--time=21:00:00` at 21:00 IST; `queue:work database --stop-when-empty --timeout=300` 5 minutes after each window. Replaces the single 06:00 run. Host cron (`* * * * * schedule:run`) was already in place — verified with `schedule:list` (09:00 & 21:00 present).
+
+**Result:**
+- Real text posts are scheduling fine (Gemini text gen works on the free tier). The evening 21:00 slot published once with the fallback image before the image change; after the change the AI-image step began failing with **HTTP 429 — Gemini free tier has `limit: 0` for the image model** (`gemini-2.5-flash-preview-image`; quota errors: "Quota exceeded ... limit: 0"). `database/data/default-post.png` is gone; IG posts without an image are rejected by Zernio, so the 09:00-IST image-backed slot cannot be delivered until the Gemini project is on a paid/billed tier.
+- **Blocked on:** enabling billing / a paid plan on the Google AI project that owns this Gemini API key (or setting an image-capable model under `gemini.image_model` + `trading_configs.gemini.image_model` once billing is on). No code change needed after that — rerun `posts:generate --retry-failed` or wait for the next 09:00/21:00 window. The two schedule windows + self-healing retries stay as-is so posts resume automatically once quota exists.
+- 218 backend tests pass; Pint + PHPStan clean on touched files.
+
+**Pending:** (none besides billing + picking an image model)
+- Decide: AI image per post needs Gemini billing enabled (image quota = 0 on free tier). Options: enable billing on this API key's project (then just refill the DB row or rerun), or supply another image-capable model under `gemini.image_model`.
+
+**Notes:** See DECISIONS entries on the "gemini key" flow (2026-09-19 AdminClientTests etc.). Default/placeholder asset intentionally removed per the "no dummy posts" rule.
+
+**Status:** completed
+
+**Changes:**
+- The dev server crashed with "Failed opening .../BankerTrader/index.php" because `vendor/.../Foundation/resources/server.php` does `require_once getcwd().'/index.php'`. cwd must be the **public/** directory. Correct startup is `php -S 0.0.0.0:8000 <project>/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php` run from inside `public/` (same as `artisan serve`, which launches the Process with `public_path()` as cwd). Wrong: launching from the project root.
+- Running server now bound to `0.0.0.0:8000`, reachable at `http://10.164.14.136:8000` from the 2nd laptop. Verified `/login` returns the real Inertia page (5.9 KB) + built assets 200 + LAN IP 200.
+
+**Pending:**
+- Set the Gemini API key at `admin/settings` from the 2nd laptop (or `GEMINI_API_KEY` in `.env`).
+
+**Notes:**
+- Future manual start: `cd public && nohup <php> -S 0.0.0.0:8000 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php &`
+
+## 2026-09-19 — Gemini API key flow: DB rows seeded, admin rotation verified
+**Status:** completed
+
+**Changes:**
+- Registered the missing `gemini.*` config rows in `trading_configs` by re-running the idempotent `TradingConfig::pluckDefaults()` (rows were added to the model on 19-Sep but the seeder had not run since) — `gemini.api_key` (is_editable=0, admin-only), `gemini.model`, `gemini.rpm`, `gemini.rpd` now exist.
+- Verified the full flow: `HttpGeminiClient::apiKey()` resolves the DB value first (env `GEMINI_API_KEY` is only a fallback); `admin/settings` (web console, `auth` + `is_admin`) now lists `gemini.api_key`; `AdminDashboardService::updateSystemSetting()` writes `trading_configs.gemini.api_key` + a `SystemEvent` audit row. Test value set via the service and reset to empty afterwards (audit rows cleaned).
+
+**Pending:**
+- Put the real key in: either paste it at `admin/settings` (Gemini API key → Save) or set `GEMINI_API_KEY` in `.env`. Gemini keys never expire; when one is rotated, just log in and update it — no deploy. Client fetches the DB value on every request already.
+
+**Notes:**
+- `GeminiPostGenerationServiceTest|GenerateAiPostJobTest|AdminDashboardTest` 19/19 green after seeding.
 
 **Status:** completed
 
@@ -380,3 +424,21 @@
   `exchanges.py`) were exercised, via a small script (`generate_xbom_holidays.py`) that calls their
   `Exchanges`/`Calendar` objects directly. Faithful to the named repo's actual holiday logic without
   standing up a service this app only ever needed to poll once a day.
+
+## 2026-09-19 — Prompt-first automated posts + daily 09:00/21:00 deployment cron
+**Status:** completed
+
+**Changes:**
+- `ai_post_requests` gained `title` + `prompt` columns (migration 2026_09_19_100002). The slot now carries a full "prompt-first brief": a rolling content category (ctype), a post title (the name), and a Gemini direction prompt — all auto-generated at slot creation, no manual UI.
+- `posts:generate` (`GenerateSocialPosts`): new `--time=` (default 09:00:00), `--title=`, `--prompt=`; `--category=` now auto-rotates across engagement/educational/promotional/festival by `(dayOfYear - 1 + slotIndex) % 4` (morning <12:00 → slotIndex 0, evening → 1), so the two daily slots always differ and the existing (date, account, category) unique key stays the idempotency guard. Auto title = "{brand} · {Day} {Category}"; auto prompt = per-ctype direction from brand/audience/description config.
+- `GeminiPostGenerationService::buildPrompt` now injects `Post title/name: {title}` plus a `# Direction` block ("Write the post around this direction: {prompt}") — Gemini is given the prompt and the name, per the flow spec (prompt → Gemini → save → schedule).
+- `bootstrap/app.php` scheduler: replaced the single 06:00 `posts:generate --from=today --to=+3 days` with two deployment windows — 09:00 and 21:00 IST (each `--time=X --from=today --to=+3 days --retry-failed`, self-healing 3-day lookahead) plus `queue:work database --stop-when-empty --timeout=300` at 09:05/21:05 IST.
+- Host crontab already has `* * * * * ... php artisan schedule:run >> storage/logs/scheduler.log` (no change needed); verified via `schedule:list`.
+- Fixed latent untested path: `GenerateAiPostJobTest::test_a_zernio_failure_after_successful_generation...` needed a scoped `Http::fake` for the presign-upload URL so the forced `createPost` error surfaces (was throwing a real-network cURL error instead). `defaultMedia()` now guards `file_get_contents()` false (PHPStan).
+
+**Pending:**
+- None. Today is live: 14:30 general (earlier flow, real logo) + 21:00 "BankerTrader · Saturday Promotional" (new prompt-first flow) both `scheduled` on Zernio. Tomorrow onward fully automated by the 09:00/21:00 cron windows.
+
+**Notes:**
+- No Zernio cancel/delete API wired — the 14:30 remote post cannot be cancelled after the fact (it will publish today as intended).
+- 214/214 backend tests pass; Pint clean; PHPStan clean on all touched files.

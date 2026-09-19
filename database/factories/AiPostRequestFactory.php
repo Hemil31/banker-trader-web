@@ -20,6 +20,8 @@ class AiPostRequestFactory extends Factory
             'scheduled_time' => '10:00:00',
             'zernio_account_id' => ZernioAccount::factory(),
             'content_category' => 'general',
+            'title' => 'Test post',
+            'prompt' => 'Write a short on-brand post about the markets today.',
             'status' => AiPostRequest::STATUS_PENDING,
             'attempts' => 0,
         ];

@@ -35,6 +35,11 @@ class HttpGeminiClient implements GeminiClient
         return (string) ($this->config->get('gemini.model') ?: config('gemini.model', 'gemini-flash-lite-latest'));
     }
 
+    protected function imageModel(): string
+    {
+        return (string) ($this->config->get('gemini.image_model') ?: config('gemini.image_model', 'gemini-2.5-flash-image'));
+    }
+
     /**
      * @param  array<string, mixed>  $responseSchema
      */
@@ -97,6 +102,99 @@ class HttpGeminiClient implements GeminiClient
         }
 
         return ['text' => $text, 'model' => $model, 'raw' => $body];
+    }
+
+    /**
+     * @return array{bytes: string, mime: string, model: string}
+     */
+    public function generateImage(string $prompt): array
+    {
+        $key = $this->apiKey();
+        if ($key === '') {
+            throw new GeminiException('Gemini API key is not configured (set gemini.api_key or GEMINI_API_KEY).');
+        }
+
+        $model = $this->imageModel();
+
+        $payload = [
+            'contents' => [
+                ['parts' => [['text' => $prompt]]],
+            ],
+            'generationConfig' => [
+                'responseModalities' => ['TEXT', 'IMAGE'],
+                'imageConfig' => ['aspectRatio' => '1:1'],
+            ],
+        ];
+
+        try {
+            $response = Http::timeout((int) config('gemini.image_timeout', 60))
+                ->connectTimeout((int) config('gemini.connect_timeout', 5))
+                ->withHeaders([
+                    'X-goog-api-key' => $key,
+                    'Content-Type' => 'application/json',
+                ])
+                ->post(
+                    rtrim((string) config('gemini.api_base', 'https://generativelanguage.googleapis.com/v1beta'), '/')
+                        ."/models/{$model}:generateContent",
+                    $payload,
+                );
+        } catch (ConnectionException $e) {
+            throw new GeminiRetryableException("Gemini image request failed to connect: {$e->getMessage()}", 0, $e);
+        } catch (Throwable $e) {
+            throw new GeminiException("Gemini image request failed: {$e->getMessage()}", 0, $e);
+        }
+
+        if ($response->status() === 429) {
+            throw new GeminiRetryableException('Gemini rate limit / quota exceeded (HTTP 429): '.$this->errorMessage($response));
+        }
+
+        if ($response->serverError()) {
+            throw new GeminiRetryableException("Gemini server error (HTTP {$response->status()}): ".$this->errorMessage($response));
+        }
+
+        if ($response->failed()) {
+            throw new GeminiException("Gemini image request failed (HTTP {$response->status()}): ".$this->errorMessage($response));
+        }
+
+        $body = (array) $response->json();
+        $image = $this->extractImage($body);
+
+        if ($image['bytes'] === '') {
+            throw new GeminiException('Gemini image response contained no image data.');
+        }
+
+        return ['bytes' => $image['bytes'], 'mime' => $image['mime'], 'model' => $model];
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array{bytes: string, mime: string}
+     */
+    protected function extractImage(array $body): array
+    {
+        $parts = $body['candidates'][0]['content']['parts'] ?? [];
+        if (! is_array($parts)) {
+            return ['bytes' => '', 'mime' => 'image/png'];
+        }
+
+        foreach ($parts as $part) {
+            if (! is_array($part) || ! isset($part['inlineData']) || ! is_array($part['inlineData'])) {
+                continue;
+            }
+
+            $data = (string) ($part['inlineData']['data'] ?? '');
+            $decoded = $data !== '' ? base64_decode($data, true) : false;
+            if ($decoded === false || $decoded === '') {
+                continue;
+            }
+
+            return [
+                'bytes' => $decoded,
+                'mime' => (string) ($part['inlineData']['mimeType'] ?? 'image/png'),
+            ];
+        }
+
+        return ['bytes' => '', 'mime' => 'image/png'];
     }
 
     /**

@@ -2,7 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Contracts\Gemini\GeminiClient;
+use App\Exceptions\Gemini\GeminiException;
 use App\Exceptions\Gemini\GeminiRetryableException;
+use App\Exceptions\ZernioException;
 use App\Models\AiPostRequest;
 use App\Services\Gemini\GeminiPostGenerationService;
 use App\Services\Zernio\ZernioService;
@@ -12,6 +15,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -60,7 +64,7 @@ class GenerateAiPostJob implements ShouldQueue
         return [30, 60, 120, 300, 600];
     }
 
-    public function handle(GeminiPostGenerationService $service, ZernioService $zernio): void
+    public function handle(GeminiPostGenerationService $service, ZernioService $zernio, GeminiClient $gemini): void
     {
         $request = AiPostRequest::find($this->aiPostRequestId);
         if (! $request) {
@@ -109,7 +113,7 @@ class GenerateAiPostJob implements ShouldQueue
 
         Log::info('POST_GENERATION_SUCCESS', $this->context($request));
 
-        $this->scheduleWithZernio($request->fresh(), $zernio);
+        $this->scheduleWithZernio($request->fresh(), $zernio, $gemini);
     }
 
     /**
@@ -145,11 +149,59 @@ class GenerateAiPostJob implements ShouldQueue
     }
 
     /**
+     * Media-required platforms (Instagram) reject text-only posts, so the job
+     * generates a fresh, real image for each post via the Gemini image model
+     * and uploads it through the Zernio presign flow — no static/placeholder
+     * artwork anywhere. No-op for platforms that don't require media.
+     *
+     * @return array<int, array{url: string, type: string}>
+     */
+    protected function generatedMedia(GeminiClient $gemini, ZernioService $zernio, AiPostRequest $request): array
+    {
+        if (strtolower((string) $request->zernioAccount?->platform) !== 'instagram') {
+            return [];
+        }
+
+        $image = $gemini->generateImage($this->imagePrompt($request));
+
+        $filename = str_contains($image['mime'], 'jpeg')
+            ? 'post-'.$request->scheduled_date->format('Ymd').'.jpg'
+            : 'post-'.$request->scheduled_date->format('Ymd').'.png';
+
+        $upload = $zernio->presignMedia($filename, $image['mime'], strlen($image['bytes']));
+
+        $uploaded = Http::timeout((int) config('zernio.timeout', 15))
+            ->withBody($image['bytes'], $image['mime'])
+            ->put($upload['upload_url']);
+
+        if (! $uploaded->successful()) {
+            throw new ZernioException('Failed to upload the generated post image (HTTP '.$uploaded->status().').');
+        }
+
+        return [['url' => (string) $upload['public_url'], 'type' => 'image']];
+    }
+
+    /**
+     * Builds the image-generation prompt from the slot's own content so the
+     * artwork is unique to each post: title, category and the caption itself.
+     */
+    protected function imagePrompt(AiPostRequest $request): string
+    {
+        $theme = (string) ($request->caption ?: 'financial trading and the markets today');
+
+        return 'Create one professional, square (1:1) social-media post image for a financial trading brand. '
+            ."Post title: {$request->title}. Category: {$request->content_category}. "
+            .'Theme drawn from this caption: '.mb_substr($theme, 0, 160)
+            .'. Style: premium and minimal, deep navy background with subtle gold accents, '
+            .'clean modern financial aesthetic. No text overlays, no brand name, no logos, no watermark.';
+    }
+
+    /**
      * Pass a successfully generated post into the existing Zernio scheduling
      * flow (ZernioService::createPost) — this is the only integration point
      * with Zernio; nothing about ZernioService itself changes.
      */
-    protected function scheduleWithZernio(AiPostRequest $request, ZernioService $zernio): void
+    protected function scheduleWithZernio(AiPostRequest $request, ZernioService $zernio, GeminiClient $gemini): void
     {
         $content = trim($request->caption."\n\n".implode(' ', (array) $request->hashtags)."\n\n".$request->cta);
 
@@ -157,6 +209,7 @@ class GenerateAiPostJob implements ShouldQueue
             $result = $zernio->createPost(
                 content: $content,
                 accountIds: [$request->zernio_account_id],
+                media: $this->generatedMedia($gemini, $zernio, $request),
                 scheduledAt: $request->scheduledAt()->toDateTimeString(),
                 createdBy: $request->created_by,
             );
@@ -167,6 +220,15 @@ class GenerateAiPostJob implements ShouldQueue
             ]);
 
             Log::info('POST_SCHEDULED', $this->context($request));
+        } catch (GeminiRetryableException $e) {
+            $this->handleRetryable($request, $e);
+        } catch (GeminiException $e) {
+            $request->update([
+                'status' => AiPostRequest::STATUS_FAILED,
+                'last_error' => 'Image generation failed: '.$e->getMessage(),
+            ]);
+
+            Log::error('POST_GENERATION_FAILED', $this->context($request, ['stage' => 'image_generation', 'error' => $e->getMessage()]));
         } catch (Throwable $e) {
             $request->update([
                 'status' => AiPostRequest::STATUS_FAILED,

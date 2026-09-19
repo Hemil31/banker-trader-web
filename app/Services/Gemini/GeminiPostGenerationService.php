@@ -87,7 +87,14 @@ class GeminiPostGenerationService
             'Month: '.$date->format('F'),
             'Platform: '.$platform,
             'Content category: '.$request->content_category,
+            'Post title/name: '.($request->title ?: ucfirst($request->content_category)),
         ];
+
+        if ($request->prompt) {
+            $lines[] = '';
+            $lines[] = '# Direction';
+            $lines[] = 'Write the post around this direction: '.$request->prompt;
+        }
 
         if ($festival !== null) {
             $lines[] = '';

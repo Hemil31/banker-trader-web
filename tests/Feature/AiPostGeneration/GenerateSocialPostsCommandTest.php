@@ -26,10 +26,51 @@ class GenerateSocialPostsCommandTest extends TestCase
         $this->assertDatabaseHas('ai_post_requests', [
             'zernio_account_id' => $active->id,
             'scheduled_date' => '2026-10-20',
-            'content_category' => 'general',
+            'scheduled_time' => '09:00:00',
+            'content_category' => 'engagement',
             'status' => AiPostRequest::STATUS_PENDING,
         ]);
+        $this->assertNotEmpty(AiPostRequest::first()->title);
+        $this->assertNotEmpty(AiPostRequest::first()->prompt);
         Queue::assertPushed(GenerateAiPostJob::class, 1);
+    }
+
+    public function test_it_creates_two_distinct_slots_for_morning_and_evening_same_day(): void
+    {
+        Queue::fake();
+        $account = ZernioAccount::factory()->create(['is_active' => true]);
+
+        $this->artisan('posts:generate', ['--date' => '2026-10-20', '--time' => '09:00:00'])->assertSuccessful();
+        $this->artisan('posts:generate', ['--date' => '2026-10-20', '--time' => '21:00:00'])->assertSuccessful();
+
+        $slots = AiPostRequest::where('zernio_account_id', $account->id)->where('scheduled_date', '2026-10-20')->get();
+        $this->assertCount(2, $slots);
+        $this->assertSame(['09:00:00', '21:00:00'], $slots->pluck('scheduled_time')->sort()->values()->all());
+        $this->assertCount(2, $slots->pluck('content_category')->unique());
+        Queue::assertPushed(GenerateAiPostJob::class, 2);
+    }
+
+    public function test_title_category_and_prompt_overrides_are_respected(): void
+    {
+        Queue::fake();
+        ZernioAccount::factory()->create(['is_active' => true]);
+
+        $this->artisan('posts:generate', [
+            '--date' => '2026-10-20',
+            '--time' => '21:30:00',
+            '--category' => 'educational',
+            '--title' => 'Monday Markets Masterclass',
+            '--prompt' => 'Explain moving averages simply.',
+        ])->assertSuccessful();
+
+        $this->assertDatabaseHas('ai_post_requests', [
+            'scheduled_date' => '2026-10-20',
+            'scheduled_time' => '21:30:00',
+            'content_category' => 'educational',
+            'title' => 'Monday Markets Masterclass',
+            'prompt' => 'Explain moving averages simply.',
+            'status' => AiPostRequest::STATUS_PENDING,
+        ]);
     }
 
     public function test_running_it_twice_never_creates_a_duplicate_slot_or_recalls_gemini_for_it(): void
@@ -54,6 +95,8 @@ class GenerateSocialPostsCommandTest extends TestCase
         AiPostRequest::factory()->failed()->create([
             'zernio_account_id' => $account->id,
             'scheduled_date' => '2026-10-20',
+            'content_category' => 'engagement',
+            'scheduled_time' => '09:00:00',
         ]);
 
         $this->artisan('posts:generate', ['--date' => '2026-10-20'])->assertSuccessful();

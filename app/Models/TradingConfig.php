@@ -260,6 +260,15 @@ class TradingConfig extends Model
             'Max Gemini calls per day for AI post generation — must match the configured model\'s published RPD quota.',
         );
 
+        static::registerDefault(
+            'gemini.image_model',
+            (string) config('gemini.image_model', 'gemini-2.5-flash-image'),
+            'gemini',
+            'string',
+            'Gemini image model',
+            'Image-generation model used to render a fresh, real post image per post (must support image output), e.g. gemini-2.5-flash-image.',
+        );
+
         // Brand/business context fed into every Gemini post-generation
         // prompt (see GeminiPostGenerationService::buildPrompt). Editable
         // like the risk/product config — no code change needed to update

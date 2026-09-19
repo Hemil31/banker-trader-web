@@ -28,4 +28,18 @@ interface GeminiClient
      * @throws GeminiException on any other failure
      */
     public function generate(string $prompt, array $responseSchema = []): array;
+
+    /**
+     * Ask the configured Gemini image model to render a fresh image for a
+     * prompt — replaces any static/placeholder artwork: every post gets a
+     * unique, brand-styled image generated from its own content.
+     *
+     * @return array{bytes: string, mime: string, model: string}
+     *                                                           Raw image bytes ready for upload (already decoded,
+     *                                                           never base64), the image MIME type, and the model id
+     *
+     * @throws GeminiRetryableException on HTTP 429 / 5xx
+     * @throws GeminiException on any other failure
+     */
+    public function generateImage(string $prompt): array;
 }

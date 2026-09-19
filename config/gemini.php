@@ -43,6 +43,14 @@ return [
 
     'model' => env('GEMINI_MODEL', 'gemini-flash-lite-latest'),
 
+    // Image-generation model used to render a unique, real post image per
+    // post (see GenerateAiPostJob / HttpGeminiClient::generateImage). A text
+    // model is NOT used here — the model must support image output
+    // (responseModalities: ['TEXT', 'IMAGE']).
+    'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
+
+    'image_timeout' => env('GEMINI_IMAGE_TIMEOUT', 60),
+
     // Conservative defaults (10 RPM / 20 RPD) — safe even for the
     // lowest-quota model in the current lineup; raise via trading_configs
     // once the actual configured model's limits are confirmed.

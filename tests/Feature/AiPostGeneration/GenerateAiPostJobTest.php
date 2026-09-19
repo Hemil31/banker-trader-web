@@ -4,6 +4,7 @@ namespace Tests\Feature\AiPostGeneration;
 
 use App\Contracts\Gemini\GeminiClient;
 use App\Contracts\Zernio\ZernioClient;
+use App\Exceptions\Gemini\GeminiException;
 use App\Exceptions\Gemini\GeminiRetryableException;
 use App\Jobs\GenerateAiPostJob;
 use App\Models\AiPostRequest;
@@ -13,6 +14,7 @@ use App\Services\Gemini\GeminiPostGenerationService;
 use App\Services\Zernio\ZernioService;
 use DateTimeInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -44,7 +46,7 @@ class GenerateAiPostJobTest extends TestCase
     {
         $job = new GenerateAiPostJob($request->id);
         $job->tries = $tries;
-        $job->handle(app(GeminiPostGenerationService::class), app(ZernioService::class));
+        $job->handle(app(GeminiPostGenerationService::class), app(ZernioService::class), app(GeminiClient::class));
     }
 
     public function test_successful_generation_saves_content_and_hands_off_to_zernio(): void
@@ -60,6 +62,7 @@ class GenerateAiPostJobTest extends TestCase
         ])));
         $zernio = $this->fakeZernio();
         $zernio->postResult = ['id' => 'zp-99', 'status' => 'scheduled', 'platforms' => []];
+        Http::fake();
 
         $this->runJob($request);
 
@@ -71,6 +74,10 @@ class GenerateAiPostJobTest extends TestCase
         $this->assertSame('zp-99', $request->zernioPost->zernio_post_id);
         $this->assertSame(1, $request->attempts);
         $this->assertCount(1, $zernio->calls['createPost'] ?? []);
+        $this->assertSame(
+            'https://media.example.test/post.png',
+            $zernio->calls['createPost'][0]['media'][0]['url'],
+        );
     }
 
     public function test_a_request_that_already_succeeded_never_calls_gemini_again(): void
@@ -149,12 +156,34 @@ class GenerateAiPostJobTest extends TestCase
         ])));
         $zernio = $this->fakeZernio();
         $zernio->throwOnCreate = new RuntimeException('Zernio unreachable');
+        Http::fake(['upload.example.test/*' => Http::response('ok', 200)]);
 
         $this->runJob($request);
 
         $request->refresh();
         $this->assertSame(AiPostRequest::STATUS_FAILED, $request->status);
         $this->assertStringContainsString('Zernio unreachable', $request->last_error);
+        $this->assertSame('Caption', $request->caption);
+    }
+
+    public function test_an_image_generation_failure_fails_the_request_without_scheduling(): void
+    {
+        $account = ZernioAccount::factory()->create(['platform' => 'instagram']);
+        $request = AiPostRequest::factory()->create(['zernio_account_id' => $account->id]);
+
+        $fake = new FakeGeminiClient(json_encode([
+            'caption' => 'Caption', 'hashtags' => ['x'], 'cta' => 'Go', 'content_type' => 'promo',
+        ]));
+        $fake->imageThrow = new GeminiException('Image model returned no image.');
+        $this->fakeGemini($fake);
+        $this->fakeZernio();
+        Http::fake();
+
+        $this->runJob($request);
+
+        $request->refresh();
+        $this->assertSame(AiPostRequest::STATUS_FAILED, $request->status);
+        $this->assertStringContainsString('Image generation failed', $request->last_error);
         $this->assertSame('Caption', $request->caption);
     }
 }
@@ -164,6 +193,8 @@ class FakeGeminiClient implements GeminiClient
     public int $callCount = 0;
 
     public ?string $lastPrompt = null;
+
+    public mixed $imageThrow = null;
 
     public function __construct(protected ?string $responseText, protected ?\Throwable $throw = null) {}
 
@@ -177,6 +208,18 @@ class FakeGeminiClient implements GeminiClient
         }
 
         return ['text' => (string) $this->responseText, 'model' => 'gemini-flash-lite-latest', 'raw' => []];
+    }
+
+    /**
+     * @return array{bytes: string, mime: string, model: string}
+     */
+    public function generateImage(string $prompt): array
+    {
+        if ($this->imageThrow !== null) {
+            throw $this->imageThrow;
+        }
+
+        return ['bytes' => 'fake-image-bytes', 'mime' => 'image/png', 'model' => 'gemini-image'];
     }
 }
 
@@ -203,7 +246,7 @@ class FakeZernioClient implements ZernioClient
         ?string $timezone = null,
         ?string $idempotencyKey = null,
     ): array {
-        $this->calls['createPost'][] = compact('content', 'targets', 'scheduledAt');
+        $this->calls['createPost'][] = compact('content', 'targets', 'media', 'scheduledAt');
 
         if ($this->throwOnCreate !== null) {
             throw $this->throwOnCreate;
@@ -219,6 +262,11 @@ class FakeZernioClient implements ZernioClient
 
     public function requestPresignedUpload(string $filename, string $contentType, int $size = 0): array
     {
-        return ['upload_url' => '', 'public_url' => '', 'key' => '', 'expires_in' => 0];
+        return [
+            'upload_url' => 'https://upload.example.test/media',
+            'public_url' => 'https://media.example.test/post.png',
+            'key' => 'k',
+            'expires_in' => 300,
+        ];
     }
 }

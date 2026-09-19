@@ -54,9 +54,9 @@ class AiPostRequest extends Model
 
     protected $fillable = [
         'scheduled_date', 'scheduled_time', 'zernio_account_id', 'content_category',
-        'status', 'attempts', 'festival_name', 'festival_type', 'caption', 'hashtags',
-        'cta', 'content_type', 'gemini_model', 'raw_response', 'last_error',
-        'zernio_post_id', 'created_by',
+        'title', 'prompt', 'status', 'attempts', 'festival_name', 'festival_type',
+        'caption', 'hashtags', 'cta', 'content_type', 'gemini_model', 'raw_response',
+        'last_error', 'zernio_post_id', 'created_by',
     ];
 
     protected $casts = [

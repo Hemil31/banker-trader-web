@@ -455,3 +455,21 @@
 - If a host cron `schedule:run` also exists on the same machine, tasks without `withoutOverlapping()` (`news:fetch`, `market:ingest`, `market-calendar:sync`) would run twice — remove the cron entry or start with `--no-schedule`.
 - An already-running `artisan serve` keeps the old behaviour until restarted.
 - A hard kill of the `artisan serve` PHP process (`taskkill /F` without `/T`) skips the shutdown hook and orphans `schedule:work`; Ctrl+C / normal exit stops both.
+
+## 2026-09-19 — First production deploy (bankertrader.shravanchemicals.com)
+**Status:** live (site, DB, Passport, cron); market data empty until Yahoo unblocks the server IP
+
+**Changes:**
+- Host: Contabo VPS (Hestia, nginx → Apache → PHP-FPM 8.3), shared with other tenants, no root. App lives directly in `~/web/bankertrader.shravanchemicals.com/public_html` (git clone of `origin/main`); an **untracked** root `.htaccess` rewrites everything to `public/` and disables directory listing. nginx blocks dotfiles (`.env`, `.git`), everything else outside `public/` is unreachable except `*.json` static files (e.g. `composer.json`, served directly by nginx).
+- `composer.json` gained `config.platform.php = 8.3.33`; the 22 `symfony/*` 8.x packages were moved to 7.4.x in `composer.lock` (Laravel 13 allows `^7.4 || ^8.0`). The lock had been resolved on PHP 8.4 and could not install on the 8.3 host (server `php8.4` has no extensions; needs root). 218/218 tests pass on 7.4.
+- Production `.env` written on the server only (`APP_ENV=production`, `APP_DEBUG=false`, HTTPS `APP_URL`, MySQL DB from the panel, broker redirect URLs pointed at the domain). Broker/news/Gemini/Zernio secrets are **not** set yet.
+- `migrate --force`, `passport:keys`, a fresh password-grant client (ID/secret in the server `.env`), `db:seed`, `optimize`.
+- **Seeder default accounts** (`admin@bankertrader.local` / `adminpassword`, `dev@bankertrader.local` / `devpassword`) had their passwords rotated to random values immediately after seeding — never run `db:seed` on a public host without doing the same.
+- Scheduler on the host: user crontab `* * * * * cd <app> && php artisan schedule:run >> storage/logs/scheduler.log`. `artisan serve` is not used in production, so the `serve` override does not apply here.
+
+**Deploy routine (server):** `git fetch && git reset --hard origin/main` → `php ~/composer.phar install --no-dev -o` (default `php` = 8.3; do **not** use `php8.4`) → `php artisan migrate --force` → `php artisan optimize`. Assets are built locally (`public/build/` is committed).
+
+**Pending:**
+- Yahoo Finance returns HTTP 429 to the server IP (even a 5-day chart request with a browser UA), so `market:ingest` failed for every stock and `market_data` is empty. Options: retry later, copy the bars from the local DB, or add another `MarketDataProvider`. `trader:auto` has nothing to scan until this is resolved.
+- Set real broker/news/Gemini/Zernio credentials in the server `.env`, then `php artisan optimize`.
+- google/protobuf advisory CVE-2026-6409 (`<4.33.6`, DoS) is flagged by `composer audit`; predates this deploy.

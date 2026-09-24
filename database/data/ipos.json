@@ -1,0 +1,111 @@
+{
+  "ipos": [
+    {
+      "slug": "nse",
+      "name": "National Stock Exchange of India Limited",
+      "symbol": "NSE",
+      "board": "mainboard",
+      "status": "live",
+      "price_min": 1700,
+      "price_max": 1785,
+      "lot_size": 8,
+      "issue_size_cr": 22561.57,
+      "issue_size_text": "OFS: 12.64 Cr shares (agg. up to ₹22,561.57 Cr)",
+      "total_issue_shares": 126436650,
+      "ofs_shares": 126436650,
+      "open_date": "2026-09-17",
+      "close_date": "2026-09-21",
+      "allotment_date": "2026-09-22",
+      "listing_date": "2026-09-24",
+      "listing_at": "BSE (Not on NSE)",
+      "face_value": "₹1 Per Equity Share",
+      "registrar": "MUFG Intime India Pvt. Ltd.",
+      "lead_managers": [
+        "Kotak Mahindra Capital Co. Ltd.",
+        "Morgan Stanley India Co. Pvt. Ltd.",
+        "HSBC Securities & Capital Markets (India) Pvt. Ltd.",
+        "SBI Capital Markets Ltd."
+      ],
+      "reservation": {
+        "anchor": {"shares_offered": 37793739, "pct": 29.89},
+        "qib": {"shares_offered": 25207868, "pct": 19.94},
+        "nii": {"shares_offered": 18900482, "pct": 14.95},
+        "bhni": {"shares_offered": 12600321, "pct": 10},
+        "shni": {"shares_offered": 6300161, "pct": 5},
+        "retail": {"shares_offered": 44101125, "pct": 34.88},
+        "employee": {"shares_offered": 433437, "pct": 0.34}
+      },
+      "issue_objectives": "The NSE IPO is a 100% Offer for Sale (OFS); the company will not receive any funding.",
+      "about": "The National Stock Exchange of India Limited (NSE) operates as one of the largest stock exchanges in India with integrated platforms for equities, derivatives, currency, commodities, debt and mutual funds.",
+      "promoters": "No Identifiable Promoter",
+      "financials": {
+        "eps_pre_ipo": 41.62,
+        "p_e_pre_ipo": 42.89,
+        "roe": 32.98,
+        "roce": 42.8,
+        "ronw": 33.21,
+        "pat_margin": 50.98,
+        "price_to_book": 13.76,
+        "market_cap_cr": 441787.5
+      },
+      "peers": [
+        {"name": "NSE", "p_b": null, "p_e": null, "ronw": 32.2},
+        {"name": "BSE", "p_b": null, "p_e": 54.2, "ronw": 45.0}
+      ],
+      "strengths": [
+        "One of India's largest electronic trading platforms",
+        "Diverse revenue streams across trading, listing, clearing, data and licensing",
+        "Low-latency technology handles high transaction volumes"
+      ],
+      "risks": [
+        "Revenues concentrate on transaction fees from options and futures",
+        "An unusually low level of trading would hit the bottom line",
+        "Technical outages could impact investor trust"
+      ],
+      "contact_details": {
+        "phone": "+91 22 2659 8100",
+        "email": "nse_ipo@nse.co.in",
+        "website": "https://www.nseindia.com",
+        "address": "Exchange Plaza, C-1, Block G, Bandra Kurla Complex, Bandra (East), Mumbai - 400051"
+      },
+      "logo_url": "https://ipoji.com/assets/nse-ipo-logo.png",
+      "source_url": "https://ipoji.com/ipo/nse-ipo/",
+      "expected_premium": 73,
+      "expected_premium_pct": 4,
+      "subscription": [
+        {"as_on": "2026-09-17 17:00:00", "qib": 0.19, "nii": 0.7, "bhni": 0.6, "shni": 0.91, "retail": 0.43, "employee": null, "total": 0.42},
+        {"as_on": "2026-09-18 17:00:00", "qib": 1.53, "nii": 1.64, "bhni": 1.56, "shni": 1.8, "retail": 0.71, "employee": null, "total": 1.15},
+        {"as_on": "2026-09-21 11:09:00", "qib": 2.19, "nii": 2.73, "bhni": 2.82, "shni": 2.55, "retail": 0.92, "employee": 1.88, "total": 1.67}
+      ],
+      "gmp": [
+        {"recorded_at": "2026-09-18 10:50:00", "gmp": 95, "premium_pct": 5.3, "indicative_price": 1880},
+        {"recorded_at": "2026-09-19 12:00:00", "gmp": 70, "premium_pct": 3.9, "indicative_price": 1855},
+        {"recorded_at": "2026-09-21 10:50:00", "gmp": 73, "premium_pct": 4.0, "indicative_price": 1858}
+      ]
+    },
+    {
+      "slug": "varmora-granito",
+      "name": "Varmora Granito",
+      "symbol": "VARMORA",
+      "board": "mainboard",
+      "status": "upcoming",
+      "price_min": 140,
+      "price_max": 148,
+      "lot_size": 101,
+      "issue_size_cr": 708.02,
+      "open_date": "2026-09-22",
+      "close_date": "2026-09-24",
+      "listing_at": "NSE, BSE",
+      "expected_premium": 12,
+      "expected_premium_pct": 8
+    },
+    {
+      "slug": "jio-platforms",
+      "name": "Jio Platforms",
+      "symbol": "JIO",
+      "board": "mainboard",
+      "status": "drhp_approved",
+      "issue_size_text": "27,00,00,000 shares (agg. up to ₹[.] Cr)"
+    }
+  ]
+}

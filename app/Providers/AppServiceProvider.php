@@ -5,6 +5,10 @@ namespace App\Providers;
 use App\Contracts\Analysis\SentimentAnalyzer;
 use App\Contracts\Festival\FestivalProvider;
 use App\Contracts\Gemini\GeminiClient;
+use App\Contracts\Ipo\AllotmentProvider;
+use App\Contracts\Ipo\IpoProvider;
+use App\Contracts\Ipo\JsonFileIpoProvider;
+use App\Contracts\Ipo\NoopAllotmentProvider;
 use App\Contracts\MarketCalendar\JsonTradingCalendarProvider;
 use App\Contracts\MarketCalendar\MarketCalendarProvider;
 use App\Contracts\MarketData\MarketDataProvider;
@@ -42,6 +46,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(NewsProvider::class, FreeNewsApiProvider::class);
         $this->app->bind(ZernioClient::class, SdkZernioClient::class);
         $this->app->bind(GeminiClient::class, HttpGeminiClient::class);
+        $this->app->bind(IpoProvider::class, fn (): IpoProvider => new JsonFileIpoProvider((string) config('ipos.source_file')));
+        $this->app->bind(AllotmentProvider::class, NoopAllotmentProvider::class);
 
         // Backed by the synced Indian market-holiday calendar (market_holidays
         // — see MarketCalendarService); GeminiPostGenerationService gets a

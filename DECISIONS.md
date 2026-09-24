@@ -1,5 +1,35 @@
 # BankerTrader — Decision Log
 
+## 2026-09-22 — IPO module feature: ingest + API (PAN/demat/apply/allotment)
+**Status:** completed — all code, tests, and gates green; nothing committed yet.
+
+**Changes:**
+- **Models + factories:** `Ipo`, `IpoSubscriptionSnapshot`, `IpoGmpHistory`, `PanCard`, `DematAccount`, `IpoApplication` (HasOne allotment), `IpoAllotment` + matching factories (incl. `live()` state on `IpoFactory`). `IpoApplicationFactory` derives nested PAN/demat from the application's `user_id` (no circular deps).
+- **Ingest layer (provider pattern):** `config/ipos.php`, `Contracts/Ipo/IpoProvider` + `JsonFileIpoProvider` (accepts plain list or `{ipos:[...]}`, throws on missing/invalid file), `Services/IpoIngestService` (upsert by slug, day-wise snapshot/GMP dedupe by `(as_on|recorded_at)` with CarbonImmutable, status-word mapping "Pre-Apply"→upcoming / "Allotment Awaited"→allotment_awaited / "DRHP Approved"→drhp_approved / "Listed Today"→listed, latest child rows drive `current_subscription/current_gmp`, `expected_premium[_pct]` from payload), `Console/Commands/IpoIngest` (`php artisan ipo:ingest [--file=]`). Sample mirror at `database/data/ipos.json` (nse live, varmora-granito upcoming, jio-platforms drhp_approved). Bound in `AppServiceProvider::register()`.
+- **API (routes/api.php, all behind `auth:api`):** `GET /api/ipos[?status&board&per_page]`, `GET /api/ipos/{slug}` (with subscription_snapshots + gmp_history); PAN CRUD + `/verify` (`PanCardService`, uppercase-normalized PAN, unique globally, primary flag exclusive); demat CRUD + `/verify` (`DematAccountService`, `Rule::unique(...)->where(user_id, provider)` on client_id); `GET|POST /api/ipo-applications` (bulk apply → one `batch_id` per group, shares=lot_size×lots, amount=price_max×shares, `updateOrCreate` on (user,ipo,pan) so resubmission upserts); `POST /api/ipo-applications/{id}/check-allotment` (`IpoAllotmentService`: guard status≠draft + `allotment_date` not future → `IpoFlowException` 422; `firstOrNew` on ipo_application_id, record attempts/checked_at, mirror provider result onto application status; default `NoopAllotmentProvider` binding returns `[]` → result stays `pending`). 5 FormRequests under `app/Http/Requests/Ipo/`.
+- **Tests:** `tests/Feature/Ipo/IpoIngestTest.php` (provider both JSON shapes + throw paths, upsert-idempotency, status mapping, latest-snapshot precedence, missing-slug skip) and `tests/Feature/Ipo/IpoApiTest.php` (auth required, pagination/filters, PAN/demat CRUD + ownership 404s + primary exclusivity + verification, bulk apply math + dedupe + foreign-pan 404, allotment pending/allotted via stubbed `AllotmentProvider`, draft/future-date guards, scoped check, own-applications-only list).
+
+**Result:** 248 backend tests pass (was 218/727), 830 assertions. Pint clean. PHPStan level 7 clean on all IPO code — **3 pre-existing errors remain in `app/Contracts/News/FreeNewsApiProvider.php`** (isset.offset + emptyDetails missing type, unmodified committed file, out of scope). `ipo:ingest` verified idempotent on dev (re-run: 0 created / 3 updated).
+
+**Pending:** commit + (optionally) wire a real allotment provider (NSDL/CDSL/registrar scrape) under `Contracts/Ipo/AllotmentProvider`; live scraper feeding `database/data/ipos.json` can replace the JSON mirror later. Flutter client consumes the new endpoints next.
+
+## 2026-09-24 — UPI ID on demat accounts (backend + Flutter)
+**Status:** completed
+**Changes:**
+- Migration `database/migrations/2026_09_24_000001_add_upi_id_to_demat_accounts_table.php` adds nullable `demat_accounts.upi_id` (128); added to `DematAccount` fillable + store/update requests (`sometimes|nullable|string|max:128`) + factory. Feature test asserts `data.upi_id` round-trip.
+- Flutter: `DematAccount.upiId` parsed from `upi_id`; threaded through `IpoApi` → repository → `SaveDematAccountUseCase` → `IdentityCubit`; add-demat dialog has an optional "UPI ID" field; UPI shown on the demat tile; entity test + both test fakes updated.
+- UPI is stored per BO for a future registrar/payment-mandate flow — the apply endpoint does not send it yet.
+**Verified:** Pint clean, PHPStan clean, `IpoApiTest` 22/22; Flutter changed files analyze clean, `flutter test` 35/35.
+
+## 2026-09-21 — IPO schema (DB only, feature deferred)
+**Status:** completed (schema) — feature implementation pending.
+
+- New migration `2026_09_21_100001_create_ipos_tables.php`: `ipos` (unique `slug`, board/status enums, price band, lot size, issue size cr + raw text + share counts, 4 dates, listing_at, registrar, JSON lead_managers/reservation/financials/peers/strengths/risks/contact_details/raw_payload, about longText, logo_url/source_url text, denormalized card values current_subscription/current_gmp/expected_premium[_pct], synced_at) + `ipo_subscription_snapshots` (ipo_id FK, as_on, qib/nii/bhni/shni/retail/employee/total decimal(8,2), unique(ipo_id,as_on)) + `ipo_gmp_history` (ipo_id FK, recorded_at, gmp/premium_pct/indicative_price, unique(ipo_id,recorded_at)).
+- **Gotcha found live:** MySQL cannot `unique`-index a `text` column (1170). The pre-existing orphan `ipos` table in dev was a leftover of a prior partial run of this same migration that died on the `text`->unique `source_url` (MySQL DDL auto-commits, so the table persisted). Dedup is on `slug`; `source_url` is now plain `text`.
+- No models / ingest / API / mobile yet — explicitly out of scope this session.
+- Verify: migrate on dev + `bankertrader_test`, rollback/re-migrate clean, 218/218 tests green.
+- **+ `2026_09_21_100002_create_ipo_investor_tables.php`** (same session): `pan_cards` (user FK, unique pan_number, holder_name, dob, status unverified|verified|rejected, verification_details json, is_primary), `demat_accounts` (user FK, provider nsdl|cdsl|cdsl_other, dp_id, client_id, unique(user,provider,client_id), status/verified json/is_primary), `ipo_applications` (user+ipo+pan+demat FKs, nullable trading_account FK, batch_id for bulk groups, lots/shares/amount, unique application_number, status draft|queued|submitted|failed|allotment_pending|allotted|not_allotted|withdrawn, request/response payloads, unique(user,ipo,pan) dedup guard), `ipo_allotments` (per-application unique row: result pending|allotted|not_allotted, shares_allotted, registrar, source, attempts, checked_at, raw_payload). NOTE: the first migrate run for 100002 hung after DDL (MySQL DDL auto-commits) so the run was killed before Laravel recorded it — recorded the migration row manually (batch 10); tables already verified byte-compatible with the migration. Deviating from that, backfills never touched user data.
+
 ## 2026-09-19 — Two-window live deployment + prompt-first AI post flow
 **Status:** deployed (code merged, scheduler live on host cron); image delivery blocked on Gemini free-tier quota
 

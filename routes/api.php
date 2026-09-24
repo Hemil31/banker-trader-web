@@ -5,6 +5,10 @@ use App\Http\Controllers\Api\Admin\TradingSafetyController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Broker\BrokerConnectionController;
 use App\Http\Controllers\Api\Broker\BrokerController;
+use App\Http\Controllers\Api\Ipo\DematAccountController;
+use App\Http\Controllers\Api\Ipo\IpoApplicationController;
+use App\Http\Controllers\Api\Ipo\IpoController;
+use App\Http\Controllers\Api\Ipo\PanCardController;
 use App\Http\Controllers\Api\News\NewsController;
 use App\Http\Controllers\Api\Trading\PaperRunController;
 use App\Http\Controllers\Api\Trading\PaperTradesController;
@@ -45,6 +49,23 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/signals', [SignalsController::class, 'index'])->name('api.signals');
     Route::get('/paper-trades', [PaperTradesController::class, 'index'])->name('api.paper-trades');
     Route::get('/news', [NewsController::class, 'index'])->name('api.news');
+
+    // IPO module
+    Route::get('/ipos', [IpoController::class, 'index'])->name('api.ipos');
+    Route::get('/ipos/{slug}', [IpoController::class, 'show'])->name('api.ipos.show');
+    Route::get('/pan-cards', [PanCardController::class, 'index'])->name('api.pan-cards');
+    Route::post('/pan-cards', [PanCardController::class, 'store'])->name('api.pan-cards.store');
+    Route::patch('/pan-cards/{panCard}', [PanCardController::class, 'update'])->name('api.pan-cards.update');
+    Route::delete('/pan-cards/{panCard}', [PanCardController::class, 'destroy'])->name('api.pan-cards.destroy');
+    Route::post('/pan-cards/{panCard}/verify', [PanCardController::class, 'verify'])->name('api.pan-cards.verify');
+    Route::get('/demat-accounts', [DematAccountController::class, 'index'])->name('api.demat-accounts');
+    Route::post('/demat-accounts', [DematAccountController::class, 'store'])->name('api.demat-accounts.store');
+    Route::patch('/demat-accounts/{dematAccount}', [DematAccountController::class, 'update'])->name('api.demat-accounts.update');
+    Route::delete('/demat-accounts/{dematAccount}', [DematAccountController::class, 'destroy'])->name('api.demat-accounts.destroy');
+    Route::post('/demat-accounts/{dematAccount}/verify', [DematAccountController::class, 'verify'])->name('api.demat-accounts.verify');
+    Route::get('/ipo-applications', [IpoApplicationController::class, 'index'])->name('api.ipo-applications');
+    Route::post('/ipo-applications', [IpoApplicationController::class, 'store'])->name('api.ipo-applications.store');
+    Route::post('/ipo-applications/{ipoApplication}/check-allotment', [IpoApplicationController::class, 'checkAllotment'])->name('api.ipo-applications.check-allotment');
 
     Route::get('/trading/config', [TradingConfigController::class, 'index'])->name('api.trading.config.index');
     Route::patch('/trading/config', [TradingConfigController::class, 'update'])

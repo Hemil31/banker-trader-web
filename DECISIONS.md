@@ -503,3 +503,23 @@
 - Yahoo Finance returns HTTP 429 to the server IP (even a 5-day chart request with a browser UA), so `market:ingest` failed for every stock and `market_data` is empty. Options: retry later, copy the bars from the local DB, or add another `MarketDataProvider`. `trader:auto` has nothing to scan until this is resolved.
 - Set real broker/news/Gemini/Zernio credentials in the server `.env`, then `php artisan optimize`.
 - google/protobuf advisory CVE-2026-6409 (`<4.33.6`, DoS) is flagged by `composer audit`; predates this deploy.
+
+## 2026-10-08 — Yahoo 429 fix + live intraday ingest for market:ingest
+**Status:** completed
+**Changes:**
+- `YahooFinanceProvider` User-Agent reduced to plain `Mozilla/5.0` — the long Chrome string was getting HTTP 429 from Yahoo on every request (verified A/B: plain UA → 200, long UA → 429), so `market:ingest` failed for all 56 stocks.
+- `market:ingest --to` now defaults to **tomorrow** instead of today, so Yahoo's `period2` (midnight) includes the current day's live intraday bar. Signals can now be scanned against same-day prices during market hours.
+**Pending:** ~13 small-cap symbols (MTL-SM, ETLSM-SM, *.BO, etc.) still fail on Yahoo — no data for those watchlist entries.
+**Notes:** Ran paper session both on 7-Oct close data and on 8-Oct live data (12:20 IST); 3 SL exits hit on the live run (RELIANCE, CAMS, LCL).
+
+## 2026-10-08 — Strategy overhaul: tuned params from backtest, intraday refresh, paper book reset
+**Status:** completed (paper restart)
+**Changes:**
+- Backtest sweep (8 variants, 2y/56 stocks) found the current config losing: baseline PF 0.87, win 42%, ₹26k cost drag. Applied best combo via `trading_configs`: `risk.stop_loss_pct` 2→3, `target1_pct` 3→5, `target2_pct` 4→8, `target3_pct` 7→12, `product.min_score` 60→65 → verified with no-override backtest: **PF 1.15, win 45.8%, net ₹16,076, 297 trades** (buy&hold -3.3%).
+- `bootstrap/app.php`: added `market:ingest` every 30 min, weekdays 09:15–15:25 IST, **defined before `trader:auto`** so SL/target checks during market hours use the live bar (previously intraday stops were only detected against the previous close because ingest ran only at 16:05/20:30).
+- Restart: `trader:emergency-exit --confirm` closed the 5 open positions; the 5 stale `paper_trades` mirrors were synced manually (emergency-exit does not close the mirror — gap in `PaperTradingService::mirrorClose` wiring, not fixed). Fresh book: ₹0 invested, ₹98,526 cash, realized today -₹1,474.
+**Pending:**
+- Daily loss cap (-₹500) blocks new entries until tomorrow 09:15; evaluate the new config after 1 week of paper results (user's decision) — edge is real but thin (expect ~7% CAGR, not more).
+- phpstan: 3 pre-existing errors in `FreeNewsApiProvider` (untouched file) — fails `composer test` regardless of this change.
+- Changes are local only; production deploy needs the usual git push → pull flow.
+**Notes:** Yahoo UA fix + `--to=tomorrow` ingest fix from earlier today are also uncommitted in the same working tree.

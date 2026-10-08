@@ -18,6 +18,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withSchedule(function (Schedule $schedule) {
+        // Intraday refresh, defined before trader:auto so it fires first on
+        // shared cron ticks: SL/target checks during market hours must use the
+        // live bar, not the previous close (without this an intraday stop is
+        // only detected on the next day's data).
+        $schedule->command('market:ingest --from='.now()->subDays(10)->toDateString())
+            ->weekdays()
+            ->between('9:15', '15:25')
+            ->everyThirtyMinutes()
+            ->timezone('Asia/Kolkata')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
         $schedule->command('trader:auto')
             ->weekdays()
             ->between('9:15', '15:25')

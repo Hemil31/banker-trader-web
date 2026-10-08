@@ -15,7 +15,7 @@ class MarketDataIngest extends Command
 {
     protected $signature = 'market:ingest
         {--from= : Start date (Y-m-d); defaults to 2 years ago}
-        {--to= : End date (Y-m-d); defaults to today}
+        {--to= : End date (Y-m-d); defaults to tomorrow so the live bar for today is included}
         {--symbol=* : Restrict to these stock IDs (repeatable)}';
 
     protected $description = 'Fetch historical OHLCV bars from Yahoo Finance for watchlist stocks';
@@ -31,7 +31,7 @@ class MarketDataIngest extends Command
         }
 
         $from = $this->option('from') ?: now()->subYears(2)->toDateString();
-        $to = $this->option('to') ?: today()->toDateString();
+        $to = $this->option('to') ?: now()->addDay()->toDateString();
 
         $this->info("Ingesting {$stocks->count()} stocks {$from} → {$to}");
 

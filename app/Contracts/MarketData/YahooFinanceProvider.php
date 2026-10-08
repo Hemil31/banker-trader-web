@@ -31,7 +31,7 @@ class YahooFinanceProvider implements MarketDataProvider
             $host = self::HOSTS[$attempts % count(self::HOSTS)];
 
             $response = Http::timeout(25)
-                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120'])
+                ->withHeaders(['User-Agent' => 'Mozilla/5.0'])
                 ->get($host.rawurlencode($symbol), $query);
 
             if ($response->successful()) {

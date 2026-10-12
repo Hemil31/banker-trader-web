@@ -159,7 +159,7 @@ class PaperTradingService
             $monitored++;
             $outcome = $this->execution->monitorPosition($position, (float) $price);
 
-            if (in_array($outcome['action'], ['stop_loss', 'target3', 'manual_close'], true)) {
+            if (in_array($outcome['action'], ['stop_loss', 'target3', 'manual_close', 'time_stop'], true)) {
                 $exits++;
                 $this->mirrorClose($position, $outcome['action']);
             }

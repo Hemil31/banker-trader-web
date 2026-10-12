@@ -10,6 +10,7 @@ use App\Models\TradingAccount;
 use App\Models\TradingPnlDaily;
 use App\Models\TradingPnlLedger;
 use App\Models\TradingSignal;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -173,6 +174,9 @@ class ExecutionEngine
         } elseif ($currentPrice >= $target3) {
             $action = 'target3';
             $exitPrice = $target3;
+        } elseif ($this->timeStopHit($position)) {
+            $action = 'time_stop';
+            $exitPrice = $currentPrice;
         } elseif ($currentPrice >= (float) $position->target2) {
             $action = 'partial_target2';
         } elseif ($currentPrice >= (float) $position->target1) {
@@ -195,8 +199,8 @@ class ExecutionEngine
             $this->partialBook($position, $exitPrice);
         }
 
-        // Full exit on SL / final target / manual close.
-        if ($action === 'stop_loss' || $action === 'target3' || $action === 'manual_close') {
+        // Full exit on SL / final target / manual close / time stop.
+        if (in_array($action, ['stop_loss', 'target3', 'manual_close', 'time_stop'], true)) {
             $this->closePosition($position, $exitPrice, $action);
         }
 
@@ -306,6 +310,28 @@ class ExecutionEngine
             'realized_pnl_net' => (float) ($position->realized_pnl_net ?? 0) + $net,
             'current_stop' => (float) $position->avg_entry_price, // risk-free post-book
         ]);
+    }
+
+    /**
+     * Fixed time-stop: once a position has been held for at least
+     * `risk.max_holding_days` calendar days it is closed at the last price,
+     * so stalled trades don't sit in the book indefinitely.
+     */
+    protected function timeStopHit(Position $position): bool
+    {
+        $maxHold = $this->config->int('risk.max_holding_days', 0);
+
+        if ($maxHold <= 0 || $position->opened_at === null) {
+            return false;
+        }
+
+        try {
+            $held = Carbon::parse($position->opened_at)->diffInDays(Carbon::now());
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $held >= $maxHold;
     }
 
     protected function applyTrailingStop(Position $position, float $currentPrice): void

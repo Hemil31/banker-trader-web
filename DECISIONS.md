@@ -523,3 +523,41 @@
 - phpstan: 3 pre-existing errors in `FreeNewsApiProvider` (untouched file) — fails `composer test` regardless of this change.
 - Changes are local only; production deploy needs the usual git push → pull flow.
 **Notes:** Yahoo UA fix + `--to=tomorrow` ingest fix from earlier today are also uncommitted in the same working tree.
+
+## 2026-10-09 — Trending stocks added + 10-strategy comparison harness
+**Status:** completed
+**Changes:**
+- Added the 20 StockEdge trending names to `stocks` (active + watchlist) with resolved Yahoo symbols; watchlist 56 → 76. History ingested (~500 bars each) except `ARMOUR`, `KKJEWELS`, `QUALIANCE` (only 1 bar — NSE-SM, Yahoo-thin) and `TERAI` (36); 7 are below `product.min_price=20` (PROMAX, TARAPUR, PFLINFOTECH, ATHCON, WAGEND, SHANGAR, RASIELEC).
+- New strategy framework: `app/Strategies/Contracts/Strategy.php` (entry + exit spec), `app/Strategies/AbstractStrategy.php`, and 10 strategies (pullback_reversal, ma_crossover, rsi_oversold, macd_crossover, bollinger_reversion, donchian_breakout, volume_breakout, momentum_20d, downday_reversion, stochastic_oversold).
+- `IndicatorCalculator::computeExtended()` — additive superset (MACD, Bollinger, Donchian, Stochastic, consecutive-down, prev MA/close). Live `compute()` path untouched.
+- `app/Services/StrategyBacktester.php` — walk-forward harness; indicators computed once per (stock,day) and shared across all 10; per-strategy exit model (SL/target/trailing/time-stop) with intrabar high/low fills; sizing/costs identical to live. Strategy #1 reuses the real `SignalScanner::scan()` gate for fidelity.
+- `app/Console/Commands/StrategyCompare.php` (`trader:strategies`) — runs all 10, persists each to `backtests` (name `strategy:<key>`), prints ranked table + deployment verdict (eligible = ≥20 trades, net>0, PF>1.2, DD<25%).
+- Gates: pint passed; phpstan clean except the 3 known `FreeNewsApiProvider` errors; `php artisan test` 248/248.
+
+**Result (2y walk-forward, 76-stock watchlist, ₹1L, intrabar exits):**
+| Strategy | Trades | Win% | PF | CAGR | Net ₹ | MaxDD |
+|---|---|---|---|---|---|---|
+| rsi_oversold | 199 | 39.2 | 1.18 | 4.2% | +9,060 | 3.3% |
+| volume_breakout | 268 | 27.2 | 1.04 | 2.8% | +5,943 | 3.9% |
+| donchian_breakout | 443 | 31.8 | 0.94 | 1.6% | +3,360 | 6.5% |
+| pullback_reversal (live) | 578 | 28.2 | 0.91 | 2.2% | +4,601 | 13.7% |
+| bollinger_reversion | 61 | 26.2 | 0.64 | -1.0% | -2,066 | 4.1% |
+| stochastic_oversold | 591 | 31.3 | 0.81 | -1.9% | -3,925 | 13.7% |
+| downday_reversion | 401 | 28.4 | 0.52 | -10.8% | -21,375 | 21.4% |
+| macd_crossover | 737 | 27.0 | 0.57 | -12.8% | -24,967 | 25.3% |
+| ma_crossover | 539 | 25.6 | 0.47 | -13.6% | -26,518 | 27.0% |
+| momentum_20d | 1,023 | 24.7 | 0.54 | -23.3% | -42,745 | 44.2% |
+
+**Best for permanent:** `rsi_oversold` (top on every axis). Strict bar (PF>1.2) not quite cleared at 1.18 — recommend paper-deploying it and keeping `volume_breakout` as a secondary sleeve before making it the live entry rule.
+**Notes:** Under realistic intrabar exits the live `pullback_reversal` edge is thinner than the earlier close-only tuning suggested (PF 0.91 vs 1.15). Local-only; not yet deployed to production. No git commit made.
+
+## 2026-10-12 — New live rule: RSI oversold + no-chase + re-scaled risk (A–D)
+**Status:** applied locally; not deployed
+**Changes:**
+- `product.entry_rule = rsi_oversold` (configurable; 'native' = old pullback+reversal). In `SignalScanner::scan()` the live entry gate now requires `rsi14 < 32 && close > prev_close` (the backtest winner, PF 1.18, no composite-score filtering for this rule). `compute()` gained `prev_close` so the scanner can evaluate it.
+- No-chase guard in `SignalScanner::chaseRejection()` (both rules): rejects `extended_prev_day_gain` (>5% single-day move) and `extended_above_ma20` (>15% above SMA20). Kills upper-circuit chasing — the day's scan confirmed 7 spike names now blocked.
+- `ExecutionEngine::monitorPosition()` added time-stop exit (`time_stop` at latest close after `risk.max_holding_days`, default 15) — stalls no longer sit in the book.
+- Config re-scale: `risk.amount_per_trade` 200→500, `daily_loss_cap`/`daily_target` 500→1500, `max_open_positions` 10→6, `stop_loss_pct` 3→5 (position notional ≈ ₹10,000, ~₹500 risk/trade at 5% SL), `max_holding_days` 15.
+- Also inserted `product.max_prev_day_gain_pct` (5) and `product.max_ext_above_ma20_pct` (15).
+**Result:** Dry scan under new rule → 1 tradable (GLAXO, rsi 28.3), 47 rejected by rule, 7 by no-chase guard. Book still holds 10 open positions (over the new cap) — new entries won't fill until exits bring it to ≤6.
+**Notes:** `strategies` harness `live_tradable` now mirrors the new rule (pullback comparison changes meaning). Gates: pint hot, phpstan clean (only pre-existing FreeNewsApiProvider errors elsewhere), tests 248/248. Code + 10-strategy work from 2026-10-09 still uncommitted/unpushed.

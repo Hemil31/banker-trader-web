@@ -118,19 +118,79 @@ class SignalScanner
         $minScore = $this->config->float('product.min_score', 60);
         $reasons = $this->buildReasons($indicators, $newsDoc);
 
-        // The reversal confirmation is a hard gate on top of the continuous score.
-        $minConfirm = $this->config->int('product.min_reversal_confirmations', 2);
-        $confirmations = $reasons['reversal_confirmations'] ?? 0;
+        // The entry rule is a hard gate on top of the continuous score. The
+        // composite-score threshold applies to the native rule only — the
+        // rsi_oversold rule relies on its own (backtested) entry condition.
+        $entryRule = strtolower((string) $this->config->get('product.entry_rule', 'native'));
+        $rsiRule = $entryRule === 'rsi_oversold';
 
-        if ($score < $minScore) {
+        if (! $rsiRule && $score < $minScore) {
             return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, false, 'score_below_minimum');
         }
+
+        // No-chase guard (both rules): never buy a stock on the day it spikes
+        // or one extended far above its 20-day mean — those entries fill near
+        // the top and gap down against the stop.
+        $chase = $this->chaseRejection($indicators);
+        if ($chase !== null) {
+            return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, false, $chase);
+        }
+
+        if ($rsiRule) {
+            $rsi = $indicators['rsi14'] ?? null;
+            $close = (float) $indicators['last_close'];
+            $prev = $indicators['prev_close'] ?? null;
+            $ok = $rsi !== null && $rsi < 32 && $prev !== null && $close > $prev;
+
+            if (! $ok) {
+                return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, false, 'entry_rule_rsi_oversold');
+            }
+
+            return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, true);
+        }
+
+        // Native rule: the reversal confirmation is a hard gate on the composite score.
+        $minConfirm = $this->config->int('product.min_reversal_confirmations', 2);
+        $confirmations = $reasons['reversal_confirmations'] ?? 0;
 
         if ($confirmations < $minConfirm) {
             return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, false, 'insufficient_reversal_confirmations');
         }
 
         return $this->scanResult($stock, $indicators, $score, $weights, $components, $newsScore, $newsDoc, $reasons, true);
+    }
+
+    /**
+     * No-chase guard: reject entries on spike days or stocks extended well
+     * above their 20-day MA. Returns a rejection reason, or null when the
+     * setup is not extended.
+     *
+     * @param  array<string, float|int|null>  $ind
+     */
+    protected function chaseRejection(array $ind): ?string
+    {
+        $close = $ind['last_close'] ?? null;
+        $prev = $ind['prev_close'] ?? null;
+        $ma20 = $ind['ma20'] ?? null;
+
+        $maxDayGain = $this->config->float('product.max_prev_day_gain_pct', 5);
+        $maxAboveMa20 = $this->config->float('product.max_ext_above_ma20_pct', 15);
+
+        if ($prev !== null && (float) $prev > 0 && $close !== null) {
+            $dayGain = ((float) $close - (float) $prev) / (float) $prev * 100;
+            if ($dayGain > $maxDayGain) {
+                return 'extended_prev_day_gain';
+            }
+        }
+
+        if ($ma20 !== null && (float) $ma20 > 0 && $close !== null) {
+            $aboveMa20 = ((float) $close - (float) $ma20) / (float) $ma20 * 100;
+            if ($aboveMa20 > $maxAboveMa20) {
+                return 'extended_above_ma20';
+            }
+        }
+
+        return null;
     }
 
     /**
